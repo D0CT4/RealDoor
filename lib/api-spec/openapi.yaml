@@ -3,13 +3,15 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Housing Navigator API — HUD FMR, AMI, eligibility, and listings
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: housing
+    description: Housing data and eligibility operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,140 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /fmr:
+    get:
+      operationId: getFmr
+      tags: [housing]
+      summary: Fair Market Rent
+      description: Returns HUD Fair Market Rent data for a borough and bedroom count
+      parameters:
+        - name: borough
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [bronx, brooklyn, manhattan, queens, statenisland]
+        - name: bedrooms
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 4
+      responses:
+        "200":
+          description: Fair Market Rent data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FmrResult"
+        "400":
+          description: Bad request
+
+  /ami:
+    get:
+      operationId: getAmi
+      tags: [housing]
+      summary: Area Median Income limits
+      description: Returns income limits at 50% and 80% AMI for a borough and household size
+      parameters:
+        - name: borough
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [bronx, brooklyn, manhattan, queens, statenisland]
+        - name: householdSize
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 6
+      responses:
+        "200":
+          description: AMI income limits
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AmiResult"
+        "400":
+          description: Bad request
+
+  /listings:
+    get:
+      operationId: getListings
+      tags: [housing]
+      summary: Affordable housing listings
+      description: Returns affordable housing listings for a borough
+      parameters:
+        - name: borough
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [bronx, brooklyn, manhattan, queens, statenisland]
+        - name: bedrooms
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 4
+        - name: maxRent
+          in: query
+          required: false
+          schema:
+            type: number
+      responses:
+        "200":
+          description: List of housing listings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HousingListing"
+
+  /eligibility:
+    post:
+      operationId: checkEligibility
+      tags: [housing]
+      summary: Check program eligibility
+      description: Calculates rent burden and returns program eligibility based on income, household size, rent, bedrooms, and borough
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EligibilityInput"
+      responses:
+        "200":
+          description: Eligibility results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EligibilityResult"
+        "400":
+          description: Bad request
+
+  /programs:
+    get:
+      operationId: getPrograms
+      tags: [housing]
+      summary: List all housing assistance programs
+      description: Returns all available housing assistance programs with descriptions and eligibility criteria
+      responses:
+        "200":
+          description: List of programs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Program"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +170,155 @@ components:
       required:
         - status
 
+    FmrResult:
+      type: object
+      required: [borough, bedrooms, fmr, effectiveYear, source]
+      properties:
+        borough:
+          type: string
+        bedrooms:
+          type: integer
+        fmr:
+          type: number
+          description: Monthly Fair Market Rent in dollars
+        effectiveYear:
+          type: integer
+        source:
+          type: string
+
+    AmiResult:
+      type: object
+      required: [borough, householdSize, ami50, ami80, ami100, effectiveYear, source]
+      properties:
+        borough:
+          type: string
+        householdSize:
+          type: integer
+        ami50:
+          type: number
+          description: Annual income limit at 50% AMI (very low income)
+        ami80:
+          type: number
+          description: Annual income limit at 80% AMI (low income)
+        ami100:
+          type: number
+          description: Annual income at 100% AMI
+        effectiveYear:
+          type: integer
+        source:
+          type: string
+
+    HousingListing:
+      type: object
+      required: [id, name, borough, address, minRent, maxRent, bedroomTypes, status, applicationUrl]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        borough:
+          type: string
+        neighborhood:
+          type: ["string", "null"]
+        address:
+          type: string
+        minRent:
+          type: number
+        maxRent:
+          type: number
+        bedroomTypes:
+          type: array
+          items:
+            type: integer
+        status:
+          type: string
+          enum: [open, lottery, waitlist, closed]
+        applicationUrl:
+          type: string
+        description:
+          type: ["string", "null"]
+        amiRange:
+          type: ["string", "null"]
+        deadline:
+          type: ["string", "null"]
+
+    EligibilityInput:
+      type: object
+      required: [monthlyIncome, householdSize, monthlyRent, bedrooms, borough]
+      properties:
+        monthlyIncome:
+          type: number
+          minimum: 0
+        householdSize:
+          type: integer
+          minimum: 1
+          maximum: 6
+        monthlyRent:
+          type: number
+          minimum: 0
+        bedrooms:
+          type: integer
+          minimum: 0
+          maximum: 4
+        borough:
+          type: string
+          enum: [bronx, brooklyn, manhattan, queens, statenisland]
+
+    EligibilityResult:
+      type: object
+      required: [burdenPercent, burdenStatus, fmr, ami50, ami80, programs]
+      properties:
+        burdenPercent:
+          type: number
+          description: Percentage of annual income spent on rent
+        burdenStatus:
+          type: string
+          enum: [affordable, burdened, severely_burdened]
+        fmr:
+          type: number
+          description: Fair Market Rent for the borough and bedroom count
+        ami50:
+          type: number
+        ami80:
+          type: number
+        programs:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProgramResult"
+
+    ProgramResult:
+      type: object
+      required: [key, name, eligibility, description, applyUrl]
+      properties:
+        key:
+          type: string
+        name:
+          type: string
+        eligibility:
+          type: string
+          enum: [likely_eligible, may_qualify, income_likely_too_high, needs_review]
+        description:
+          type: string
+        applyUrl:
+          type: string
+        notes:
+          type: ["string", "null"]
+
+    Program:
+      type: object
+      required: [key, name, description, eligibilitySummary, applyUrl, adminBody]
+      properties:
+        key:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        eligibilitySummary:
+          type: string
+        applyUrl:
+          type: string
+        adminBody:
+          type: string
+        amiThreshold:
+          type: ["string", "null"]
