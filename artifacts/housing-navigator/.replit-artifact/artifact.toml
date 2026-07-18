@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "Housing Navigator"
+version = "1.0.0"
+id = "artifacts/housing-navigator"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21076
+
+[services.development]
+run = "pnpm --filter @workspace/housing-navigator run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/housing-navigator", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/housing-navigator/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21076"
+BASE_PATH = "/"
