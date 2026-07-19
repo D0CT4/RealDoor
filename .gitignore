@@ -47,3 +47,11 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Replit agent auto-generated folder snapshots (can leak PII/tokens from
+# attached files and duplicate build output already tracked elsewhere)
+attached_assets/attached_assets_*.zip
+attached_assets/artifacts_*.zip
+attached_assets/lib_*.zip
+attached_assets/scripts_*.zip
+*.pkpass
