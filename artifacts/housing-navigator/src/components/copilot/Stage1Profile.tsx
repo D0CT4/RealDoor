@@ -40,16 +40,19 @@ const CONFIDENCE_META = {
   low:    { label: "Low confidence",    color: "text-red-700",    bg: "bg-red-50 border-red-200"       },
 };
 
-const ACCEPTED_MIME = [
+const MAX_FILES = 10;
+
+const ACCEPTED_MIME = new Set([
   "application/pdf",
   "image/jpeg",
   "image/png",
   "image/webp",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/msword",
-];
+  "text/plain",
+]);
 
-const ACCEPTED_EXTS = [".pdf", ".jpg", ".jpeg", ".png", ".webp", ".docx"];
+const ACCEPTED_EXTS = [".pdf", ".jpg", ".jpeg", ".png", ".webp", ".docx", ".txt"];
 
 const FILE_TYPE_LABELS: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
   "application/pdf": { label: "PDF", icon: <FileText className="h-4 w-4" />, color: "text-red-600" },
@@ -58,6 +61,7 @@ const FILE_TYPE_LABELS: Record<string, { label: string; icon: React.ReactNode; c
   "image/webp":      { label: "WEBP", icon: <ImageIcon className="h-4 w-4" />, color: "text-blue-600" },
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": { label: "DOCX", icon: <FileText className="h-4 w-4" />, color: "text-indigo-600" },
   "application/msword": { label: "DOC", icon: <FileText className="h-4 w-4" />, color: "text-indigo-600" },
+  "text/plain": { label: "TXT", icon: <FileText className="h-4 w-4" />, color: "text-gray-600" },
 };
 
 const SYNTHETIC_EXAMPLE = `PAY STUB — Acme Staffing LLC
@@ -73,10 +77,12 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
 
   // Mode + inputs
   const [inputMode, setInputMode] = useState<InputMode>("upload");
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [docText, setDocText] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const [showPaste, setShowPaste] = useState(false);
+  // Per-file extraction progress when multiple files are queued
+  const [extractProgress, setExtractProgress] = useState<{ done: number; total: number } | null>(null);
 
   // Extraction state
   const [isExtracting, setIsExtracting] = useState(false);
@@ -100,6 +106,43 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
     if (extractDone && firstFieldRef.current) firstFieldRef.current.focus();
   }, [extractDone]);
 
+  // ── File helpers ─────────────────────────────────────────────
+  function addFiles(incoming: FileList | File[]) {
+    const arr = Array.from(incoming);
+    const valid   = arr.filter((f) => ACCEPTED_MIME.has(f.type));
+    const invalid = arr.filter((f) => !ACCEPTED_MIME.has(f.type));
+    if (invalid.length) {
+      setError(t("Some files were skipped — only PDF, DOCX, JPEG, PNG, and TXT are supported."));
+    } else {
+      setError(null);
+    }
+    if (!valid.length) return;
+    setFiles((prev) => {
+      const merged = [...prev, ...valid];
+      if (merged.length > MAX_FILES) {
+        setError(t(`Maximum ${MAX_FILES} files at a time. Extra files were dropped.`));
+        return merged.slice(0, MAX_FILES);
+      }
+      return merged;
+    });
+    setExtractDone(false);
+    setFields([]);
+  }
+
+  const removeFile = (idx: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== idx));
+    setExtractDone(false);
+    setFields([]);
+    setError(null);
+  };
+
+  const clearFiles = () => {
+    setFiles([]);
+    setExtractDone(false);
+    setFields([]);
+    setError(null);
+  };
+
   // ── Drag & drop handlers ────────────────────────────────────
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -113,78 +156,101 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    const dropped = e.dataTransfer.files[0];
-    if (dropped && ACCEPTED_MIME.includes(dropped.type)) {
-      setFile(dropped);
-      setDocText("");
-      setExtractDone(false);
-      setFields([]);
-      setError(null);
-    } else {
-      setError(t("Unsupported file type. Please upload PDF, DOCX, JPEG, or PNG."));
-    }
+    if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [t]);
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (f) {
-      setFile(f);
+    if (e.target.files?.length) {
+      addFiles(e.target.files);
       setDocText("");
-      setExtractDone(false);
-      setFields([]);
-      setError(null);
     }
     e.target.value = "";
   };
 
-  const clearFile = () => {
-    setFile(null);
-    setExtractDone(false);
-    setFields([]);
-    setError(null);
-  };
-
   // ── Extract ──────────────────────────────────────────────────
   async function handleExtract() {
-    const hasInput = file ? true : docText.trim().length > 0;
-    if (!hasInput) return;
+    const hasFiles = files.length > 0;
+    const hasText  = docText.trim().length > 0;
+    if (!hasFiles && !hasText) return;
     setError(null);
     setIsExtracting(true);
     setExtractDone(false);
+    setExtractProgress(null);
+
+    // Accumulator: later files' non-null values override earlier ones for the same key
+    const mergedFields: Record<string, ExtractedField> = {};
+    let lastSessionId = localSessionId;
+    let anyWarning    = false;
+    let anyRag        = false;
+    let lastSourceType = "text";
 
     try {
-      let res: Response;
+      if (hasFiles) {
+        setExtractProgress({ done: 0, total: files.length });
+        for (let i = 0; i < files.length; i++) {
+          const f = files[i];
+          const form = new FormData();
+          form.append("file", f);
+          if (lastSessionId) form.append("sessionId", lastSessionId);
 
-      if (file) {
-        const form = new FormData();
-        form.append("file", file);
-        if (localSessionId) form.append("sessionId", localSessionId);
-        res = await fetch("/api/copilot/rag-extract", { method: "POST", body: form });
+          const res = await fetch("/api/copilot/rag-extract", { method: "POST", body: form });
+          const data = await res.json();
+          if (!res.ok) {
+            setError(`${f.name}: ${data.error ?? t("Extraction failed.")}`);
+            setIsExtracting(false);
+            setExtractProgress(null);
+            return;
+          }
+
+          lastSessionId = data.sessionId;
+          anyWarning = anyWarning || !!data.warningDetected;
+          anyRag     = anyRag     || !!data.ragUsed;
+          lastSourceType = data.sourceType ?? lastSourceType;
+
+          // Merge fields — non-null value from this file wins over a prior null
+          (data.fields as ExtractedField[]).forEach((field) => {
+            const existing = mergedFields[field.key];
+            if (!existing || (!existing.value && field.value)) {
+              mergedFields[field.key] = field;
+            }
+          });
+
+          setExtractProgress({ done: i + 1, total: files.length });
+        }
       } else {
-        res = await fetch("/api/copilot/rag-extract", {
+        // Text-paste path
+        const res = await fetch("/api/copilot/rag-extract", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ documentText: docText, sessionId: localSessionId }),
+          body: JSON.stringify({ documentText: docText, sessionId: lastSessionId }),
         });
+        const data = await res.json();
+        if (!res.ok) { setError(data.error ? t(data.error) : t("Extraction failed.")); return; }
+
+        lastSessionId  = data.sessionId;
+        anyWarning     = !!data.warningDetected;
+        anyRag         = !!data.ragUsed;
+        lastSourceType = data.sourceType ?? "text";
+        (data.fields as ExtractedField[]).forEach((field) => { mergedFields[field.key] = field; });
       }
 
-      const data = await res.json();
-      if (!res.ok) { setError(data.error ? t(data.error) : t("Extraction failed.")); return; }
-
-      setLocalSessionId(data.sessionId);
-      setFields(data.fields);
-      setWarningDetected(!!data.warningDetected);
-      setRagUsed(!!data.ragUsed);
-      setSourceType(data.sourceType ?? "text");
+      const finalFields = Object.values(mergedFields);
+      setLocalSessionId(lastSessionId);
+      setFields(finalFields);
+      setWarningDetected(anyWarning);
+      setRagUsed(anyRag);
+      setSourceType(lastSourceType);
 
       const initEdits: Record<string, string> = {};
-      data.fields.forEach((f: ExtractedField) => { initEdits[f.key] = f.value ?? ""; });
+      finalFields.forEach((f) => { initEdits[f.key] = f.value ?? ""; });
       setEdits(initEdits);
       setExtractDone(true);
     } catch {
       setError(t("Network error — please check your connection and try again."));
     } finally {
       setIsExtracting(false);
+      setExtractProgress(null);
     }
   }
 
@@ -216,8 +282,7 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
     }
   }
 
-  const hasInput = file !== null || docText.trim().length > 0;
-  const fileMeta = file ? FILE_TYPE_LABELS[file.type] : null;
+  const hasInput = files.length > 0 || docText.trim().length > 0;
 
   return (
     <div className="space-y-6">
@@ -243,7 +308,7 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
       <div>
         <button
           type="button"
-          onClick={() => { setDocText(SYNTHETIC_EXAMPLE); setFile(null); setShowPaste(true); setExtractDone(false); setFields([]); }}
+          onClick={() => { setDocText(SYNTHETIC_EXAMPLE); setFiles([]); setShowPaste(true); setExtractDone(false); setFields([]); }}
           className="text-xs underline text-secondary hover:text-primary focus-visible:ring-2 focus-visible:ring-primary rounded"
           aria-label={t("Load a sample synthetic pay stub into the text area")}
         >
@@ -253,13 +318,24 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
 
       {/* ── Drop zone ─────────────────────────────────────────── */}
       <div>
-        <label className="block text-sm font-medium text-foreground mb-2">
-          {t("Document")}{" "}
-          <span className="text-muted-foreground font-normal">
-            {t("(PDF, JPEG, PNG, DOCX)")}
-          </span>{" "}
-          <span aria-hidden="true" className="text-destructive">*</span>
-        </label>
+        <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+          <label className="block text-sm font-medium text-foreground">
+            {t("Documents")}{" "}
+            <span className="text-muted-foreground font-normal">
+              {t("(PDF, JPEG, PNG, DOCX, TXT — up to 10)")}
+            </span>{" "}
+            <span aria-hidden="true" className="text-destructive">*</span>
+          </label>
+          {files.length > 0 && (
+            <button
+              type="button"
+              onClick={clearFiles}
+              className="text-xs text-muted-foreground hover:text-destructive focus-visible:ring-2 focus-visible:ring-primary rounded underline"
+            >
+              {t("Remove all")}
+            </button>
+          )}
+        </div>
 
         {/* Drop target */}
         <div
@@ -267,17 +343,15 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
-          onClick={() => !file && fileInputRef.current?.click()}
+          onClick={() => fileInputRef.current?.click()}
           role="button"
           tabIndex={0}
-          onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && !file) fileInputRef.current?.click(); }}
-          aria-label={t("Document upload area — drag and drop or click to browse")}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") fileInputRef.current?.click(); }}
+          aria-label={t("Document upload area — drag and drop or click to browse. Up to 10 files.")}
           className={[
             "relative rounded-xl border-2 border-dashed transition-all duration-150 select-none",
             "focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none",
-            file
-              ? "border-primary/40 bg-primary/5 cursor-default"
-              : isDragging
+            isDragging
               ? "border-primary bg-primary/10 scale-[1.01] cursor-copy"
               : "border-border hover:border-primary/50 hover:bg-muted/30 cursor-pointer",
           ].join(" ")}
@@ -285,6 +359,7 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
           <input
             ref={fileInputRef}
             type="file"
+            multiple
             accept={ACCEPTED_EXTS.join(",")}
             className="sr-only"
             onChange={handleFileInput}
@@ -292,67 +367,80 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
             tabIndex={-1}
           />
 
-          {file ? (
-            /* File selected state */
-            <div className="flex items-center gap-3 px-5 py-4">
-              <span className={fileMeta?.color ?? "text-muted-foreground"} aria-hidden="true">
-                {fileMeta?.icon ?? <FileText className="h-5 w-5" />}
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate">{file.name}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {fileMeta?.label} · {(file.size / 1024).toFixed(0)} KB
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); clearFile(); }}
-                className="shrink-0 rounded-full p-1 text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
-                aria-label={t("Remove selected file")}
-              >
-                <X className="h-4 w-4" />
-              </button>
+          {/* Always-visible drop prompt (stays at top) */}
+          <div className="flex flex-col items-center gap-2 py-6 px-6 text-center">
+            <div className={[
+              "rounded-full p-3 transition-colors",
+              isDragging ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+            ].join(" ")}>
+              <Upload className="h-5 w-5" aria-hidden="true" />
             </div>
-          ) : (
-            /* Empty state */
-            <div className="flex flex-col items-center gap-3 py-10 px-6 text-center">
-              <div className={[
-                "rounded-full p-3 transition-colors",
-                isDragging ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
-              ].join(" ")}>
-                <Upload className="h-6 w-6" aria-hidden="true" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-foreground">
-                  {isDragging ? t("Drop to upload") : t("Drag & drop your document here")}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {t("or")}{" "}
-                  <span className="text-primary font-medium underline underline-offset-2">
-                    {t("click to browse")}
+            <div>
+              <p className="text-sm font-medium text-foreground">
+                {isDragging
+                  ? t("Drop files to add")
+                  : files.length > 0
+                  ? t("Drop more files or click to add")
+                  : t("Drag & drop files here")}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {t("or")}{" "}
+                <span className="text-primary font-medium underline underline-offset-2">
+                  {t("click to browse")}
+                </span>
+                {files.length > 0 && (
+                  <span className="ml-1 text-muted-foreground">
+                    · {files.length}/{MAX_FILES} {t("files")}
                   </span>
-                </p>
-              </div>
-
-              {/* Format badges */}
-              <div className="flex items-center gap-2 mt-1" aria-label={t("Supported formats")}>
-                {[
-                  { label: "PDF",  color: "bg-red-50 border-red-200 text-red-700" },
-                  { label: "JPEG", color: "bg-blue-50 border-blue-200 text-blue-700" },
-                  { label: "PNG",  color: "bg-blue-50 border-blue-200 text-blue-700" },
-                  { label: "DOCX", color: "bg-indigo-50 border-indigo-200 text-indigo-700" },
-                ].map(({ label, color }) => (
-                  <span
-                    key={label}
-                    className={`rounded border px-2 py-0.5 text-[11px] font-semibold tracking-wide ${color}`}
-                  >
-                    {label}
-                  </span>
-                ))}
-              </div>
+                )}
+              </p>
             </div>
-          )}
+            {/* Format badges */}
+            <div className="flex items-center gap-1.5 flex-wrap justify-center mt-1" aria-label={t("Supported formats")}>
+              {[
+                { label: "PDF",  color: "bg-red-50 border-red-200 text-red-700" },
+                { label: "JPEG", color: "bg-blue-50 border-blue-200 text-blue-700" },
+                { label: "PNG",  color: "bg-blue-50 border-blue-200 text-blue-700" },
+                { label: "DOCX", color: "bg-indigo-50 border-indigo-200 text-indigo-700" },
+                { label: "TXT",  color: "bg-gray-50 border-gray-200 text-gray-600" },
+              ].map(({ label, color }) => (
+                <span key={label} className={`rounded border px-2 py-0.5 text-[11px] font-semibold tracking-wide ${color}`}>
+                  {label}
+                </span>
+              ))}
+            </div>
+          </div>
         </div>
+
+        {/* File list — shown below the drop zone */}
+        {files.length > 0 && (
+          <ul className="mt-2 space-y-1.5" aria-label={t("Selected files")}>
+            {files.map((f, idx) => {
+              const meta = FILE_TYPE_LABELS[f.type];
+              return (
+                <li key={`${f.name}-${idx}`} className="flex items-center gap-2.5 rounded-lg border border-border bg-background px-3 py-2">
+                  <span className={`${meta?.color ?? "text-muted-foreground"} shrink-0`} aria-hidden="true">
+                    {meta?.icon ?? <FileText className="h-4 w-4" />}
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-sm font-medium text-foreground truncate">{f.name}</span>
+                    <span className="block text-xs text-muted-foreground">
+                      {meta?.label ?? "File"} · {(f.size / 1024).toFixed(0)} KB
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); removeFile(idx); }}
+                    className="shrink-0 rounded-full p-1 text-muted-foreground hover:text-destructive hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+                    aria-label={`${t("Remove")} ${f.name}`}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
 
       {/* ── OR paste text ─────────────────────────────────────── */}
@@ -381,7 +469,7 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
         {showPaste && (
           <div id="paste-area" className="px-4 pb-4 pt-1 border-t border-border bg-muted/10">
             <label htmlFor="doc-text" className="block text-xs font-medium text-muted-foreground mb-1.5 mt-2">
-              {t("Paste text here")} {file && <span className="text-amber-600">({t("will override the uploaded file")})</span>}
+              {t("Paste text here")} {files.length > 0 && <span className="text-amber-600">({t("will be used instead of uploaded files")})</span>}
             </label>
             <textarea
               id="doc-text"
@@ -391,7 +479,6 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
               value={docText}
               onChange={(e) => {
                 setDocText(e.target.value);
-                if (e.target.value.trim()) setFile(null);
                 setExtractDone(false);
                 setFields([]);
               }}

@@ -58,6 +58,7 @@ const upload = multer({
       "image/webp",
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "application/msword",
+      "text/plain",
     ]);
     cb(null, ALLOWED_MIME.has(file.mimetype));
   },
@@ -235,8 +236,10 @@ router.post(
           isVisionMode = true;
           visionB64 = file.buffer.toString("base64");
           visionMime = file.mimetype;
+        } else if (file.mimetype === "text/plain") {
+          rawText = file.buffer.toString("utf8");
         } else {
-          res.status(400).json({ error: "Unsupported file type. Upload PDF, DOCX, JPEG, or PNG." });
+          res.status(400).json({ error: "Unsupported file type. Upload PDF, DOCX, JPEG, PNG, or TXT." });
           return;
         }
       } else if (body.documentText) {
