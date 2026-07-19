@@ -50,7 +50,7 @@ export const PROGRAMS = [
     description:
       "A federal rental subsidy program administered locally by NYCHA. Voucher holders pay 30% of their income toward rent; the program covers the rest up to the Fair Market Rent. Waitlists are often long and may be closed to new applicants.",
     eligibilitySummary: "Must have income at or below 50% AMI. Waitlist priority given to extremely low-income households (30% AMI).",
-    applyUrl: "https://www1.nyc.gov/site/nycha/section-8/apply-for-section-8.page",
+    applyUrl: "https://www.nyc.gov/site/nycha/section-8/applicants.page",
     adminBody: "NYCHA",
     amiThreshold: "50% AMI (priority: 30% AMI)",
   },
@@ -70,7 +70,7 @@ export const PROGRAMS = [
     description:
       "A NYC rental assistance voucher program primarily for households facing eviction, living in shelter, or at risk of homelessness. Administered by HRA/DSS. Income and situation requirements differ from Section 8.",
     eligibilitySummary: "Must be facing eviction, in shelter, or at risk of homelessness. Income limits apply (typically 200% FPL). Current tenants may also qualify.",
-    applyUrl: "https://www.nyc.gov/site/hra/help/cityfheps-rental-assistance.page",
+    applyUrl: "https://www.nyc.gov/site/hra/help/cityfheps.page",
     adminBody: "NYC HRA/DSS",
     amiThreshold: null,
   },

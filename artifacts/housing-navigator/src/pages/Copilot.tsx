@@ -158,7 +158,7 @@ export default function Copilot() {
             </li>
             <li>
               <strong className="text-foreground">NYCHA Section 8</strong> — {t("Official program info:")}{" "}
-              <a href="https://www1.nyc.gov/site/nycha/section-8/apply-for-section-8.page" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline focus-visible:ring-2 focus-visible:ring-primary rounded">nycha.info</a>
+              <a href="https://www.nyc.gov/site/nycha/section-8/applicants.page" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline focus-visible:ring-2 focus-visible:ring-primary rounded">nycha.info</a>
             </li>
             <li>
               <strong className="text-foreground">311</strong> — {t("NYC general housing assistance:")}{" "}
