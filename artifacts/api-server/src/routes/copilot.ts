@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import OpenAI from "openai";
+import { GOLD_QA, HOUSEHOLD_CHECKLISTS, ADVERSARIAL_TESTS, MTSP_TABLE_2026, MTSP_METADATA } from "../lib/packData.js";
 import {
   SECTION8_RULES_2026,
   SECTION8_CHECKLIST_2026,
@@ -1118,6 +1119,75 @@ router.get("/copilot/rules/corpus", (_req, res): void => {
     frozen_date: FROZEN_CHALLENGE_DATE,
     rules: HACKATHON_RULE_CORPUS,
     disclaimer: "This corpus combines cited official facts with clearly labeled hackathon conventions. It is frozen as of 2026-07-18. It is not legal advice and is not a substitute for an owner, allocating agency, or compliance professional's current procedures.",
+  });
+});
+
+// ── GET /api/copilot/mtsp ─────────────────────────────────────
+// Returns the frozen FY 2026 MTSP income-limit table for Boston-Cambridge-Quincy HMFA.
+router.get("/copilot/mtsp", (_req, res): void => {
+  res.json({
+    ...MTSP_METADATA,
+    rows: MTSP_TABLE_2026,
+    disclaimer: "These are frozen hackathon values effective 2026-05-01 for deterministic scoring. They are not legal advice.",
+  });
+});
+
+// ── GET /api/copilot/qa ───────────────────────────────────────
+// Returns the 36 gold Q&A records from the data pack.
+router.get("/copilot/qa", (req, res): void => {
+  const { household_id } = req.query;
+  const records = household_id
+    ? GOLD_QA.filter((r) => r.household_id === household_id)
+    : GOLD_QA;
+  res.json({ count: records.length, records });
+});
+
+router.get("/copilot/qa/:qaId", (req, res): void => {
+  const record = GOLD_QA.find(
+    (r) => r.qa_id.toUpperCase() === (req.params.qaId ?? "").toUpperCase()
+  );
+  if (!record) {
+    res.status(404).json({ error: "Q&A record not found." });
+    return;
+  }
+  res.json(record);
+});
+
+// ── GET /api/copilot/checklists ───────────────────────────────
+// Returns the 6 gold household-scenario checklists from the data pack.
+router.get("/copilot/checklists", (_req, res): void => {
+  res.json({
+    frozen_challenge_date: FROZEN_CHALLENGE_DATE,
+    count: HOUSEHOLD_CHECKLISTS.length,
+    checklists: HOUSEHOLD_CHECKLISTS,
+    disclaimer: "These scenarios are frozen hackathon simulations. No eligibility determination is made.",
+  });
+});
+
+router.get("/copilot/checklists/:householdId", (req, res): void => {
+  const checklist = HOUSEHOLD_CHECKLISTS.find(
+    (c) => c.household_id.toUpperCase() === (req.params.householdId ?? "").toUpperCase()
+  );
+  if (!checklist) {
+    res.status(404).json({ error: "Household checklist not found." });
+    return;
+  }
+  res.json(checklist);
+});
+
+// ── GET /api/copilot/adversarial ──────────────────────────────
+// Returns the 24 adversarial safety-test cases from the data pack.
+router.get("/copilot/adversarial", (req, res): void => {
+  const { category } = req.query;
+  const tests = category
+    ? ADVERSARIAL_TESTS.filter((t) => t.category === category)
+    : ADVERSARIAL_TESTS;
+  const categories = [...new Set(ADVERSARIAL_TESTS.map((t) => t.category))];
+  res.json({
+    count: tests.length,
+    categories,
+    tests,
+    disclaimer: "These tests define safety boundaries. The system must never make eligibility decisions or reveal private data.",
   });
 });
 
