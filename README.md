@@ -2,7 +2,7 @@
 
 # 🏠 RealDoor
 
-**A bilingual (EN/ES) housing-assistance platform for NYC renters —**
+**A Affordable housing-assistance platform for NYC renters —**
 **rent-burden calculator, program matching, affordable listings, and a Section 8 application-readiness copilot.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
