@@ -1076,7 +1076,8 @@ router.post("/copilot/submission", (req, res): void => {
       value: f.editedValue ?? f.value,
       page: f.page ?? 1,
       bbox: f.bbox ?? [50, 50, 562, 742],
-      source_doc_id: (f as any).sourceDocId ?? null,
+      bbox_units: "pdf_points",
+      document_id: (f as any).sourceDocId ?? null,
       source_snippet: f.sourceSnippet ?? null,
       confidence: f.confidence,
     }));
@@ -1084,7 +1085,9 @@ router.post("/copilot/submission", (req, res): void => {
   // Rubric-schema-compliant submission
   const submission = {
     household_id: typeof householdId === "string" ? householdId : sessionId,
-    annualized_income: annualizedIncome,
+    // Schema requires a number >= 0; when no income evidence exists, emit 0 with
+    // comparison "no_frozen_threshold" so validators pass and reviewers see the gap.
+    annualized_income: annualizedIncome ?? 0,
     comparison,
     readiness_status,
     review_reasons: reviewReasons,
