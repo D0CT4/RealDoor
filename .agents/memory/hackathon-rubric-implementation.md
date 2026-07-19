@@ -57,3 +57,7 @@ Frontend: Listings page has two tabs — "NYC Affordable Housing" and "LIHTC —
 - `artifacts/api-server/src/routes/lihtc.ts` — LIHTC route
 - `artifacts/housing-navigator/src/components/copilot/LihtcSection.tsx` — LIHTC UI
 - `artifacts/housing-navigator/src/components/copilot/Stage3Prepare.tsx` — readiness UI
+
+## Granular review_reasons (gold alignment)
+Gold reason codes (PAY_STUB_TOTAL_CONFLICT, EMPLOYMENT_LETTER_EXPIRED, GIG_INCOME_UNCORROBORATED) must be derived from session document evidence (documentType + documentDate + per-doc annualized income variance >5%), NEVER from checklist item labels — the pay-stub label contains "Employment" and regex matching misclassifies. Generic DOCUMENT_EXPIRED is only a fallback for renter-marked expirations.
+**Why:** label-regex mapping shipped a misclassification bug caught in review.

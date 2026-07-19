@@ -392,7 +392,7 @@ router.post("/copilot/rules", async (req, res): Promise<void> => {
     res.json({
       answer:
         "I can only answer questions about Section 8 HCV program rules and LIHTC threshold data (2026). Please ask about income limits, rent calculations, required documents, or program procedures.",
-      citation: { rule_id: "CH-SAFETY-001", ...decisionCitation },
+      citation: { ...decisionCitation, rule_id: "CH-SAFETY-001" },
       deterministic: true,
       abstained: true,
       abstainReason: "Prompt injection detected — instruction ignored per CH-SAFETY-001.",
@@ -420,7 +420,7 @@ router.post("/copilot/rules", async (req, res): Promise<void> => {
       answer:
         "This tool only answers questions about program rules and your own submitted profile. " +
         "Data from other households is not accessible through this interface (CH-SAFETY-001).",
-      citation: { rule_id: "CH-SAFETY-001", ...decisionCitation },
+      citation: { ...decisionCitation, rule_id: "CH-SAFETY-001" },
       deterministic: true,
       abstained: true,
       abstainReason: "Cross-applicant data request refused — CH-SAFETY-001.",
@@ -453,7 +453,7 @@ router.post("/copilot/rules", async (req, res): Promise<void> => {
     res.json({
       answer:
         "This tool does not infer protected characteristics including disability status, immigration status, race, ethnicity, religion, or health conditions from documents (CH-SAFETY-001).",
-      citation: { rule_id: "CH-SAFETY-001", ...decisionCitation },
+      citation: { ...decisionCitation, rule_id: "CH-SAFETY-001" },
       deterministic: true,
       abstained: true,
       abstainReason: "Protected-trait inference refused — CH-SAFETY-001.",
@@ -1010,9 +1010,59 @@ router.post("/copilot/submission", (req, res): void => {
   const missingRequired = SECTION8_CHECKLIST_2026
     .filter(item => item.required && (statuses[item.id] === "missing" || statuses[item.id] === undefined));
   if (missingRequired.length > 0) reviewReasons.push(READINESS_REASONS.MISSING_REQUIRED_DOCUMENT);
+  // ── Gold-aligned granular reasons, derived from session document evidence ──
+  const sessionDocs = session.documents ?? [];
+  const docTypeOf = (doc: { fields: { key: string; value: string | null }[] }) =>
+    doc.fields.find(f => f.key === "documentType" && f.value)?.value?.toLowerCase().trim() ?? null;
+  const docDateOf = (doc: { fields: { key: string; value: string | null }[] }) =>
+    doc.fields.find(f => f.key === "documentDate" && f.value)?.value ?? null;
+
+  // Currency cutoff: FROZEN_CHALLENGE_DATE minus FROZEN_CHALLENGE_CURRENCY_DAYS (CH-CURRENCY-001)
+  const cutoff = new Date(FROZEN_CHALLENGE_DATE);
+  cutoff.setDate(cutoff.getDate() - FROZEN_CHALLENGE_CURRENCY_DAYS);
+  const isExpiredDate = (iso: string | null): boolean => {
+    if (!iso) return false;
+    const d = new Date(iso);
+    return !isNaN(d.getTime()) && d < cutoff;
+  };
+
+  // EMPLOYMENT_LETTER_EXPIRED — an employment letter document dated outside the 60-day window
+  if (sessionDocs.some(doc => docTypeOf(doc) === "employment_letter" && isExpiredDate(docDateOf(doc)))) {
+    reviewReasons.push(READINESS_REASONS.EMPLOYMENT_LETTER_EXPIRED);
+  }
+
+  // PAY_STUB_TOTAL_CONFLICT — >5% variance in annualized income across income documents
+  const perDocIncomes = sessionDocs
+    .map(doc => {
+      const gf = doc.fields.find(f => f.key === "grossAmount" && f.value);
+      const ff = doc.fields.find(f => f.key === "payFrequency" && f.value);
+      const mf = doc.fields.find(f => f.key === "monthlyIncome" && f.value);
+      if (gf?.value && ff?.value) {
+        const mult = INCOME_FREQUENCY[ff.value.toLowerCase().trim()];
+        if (mult) return parseFloat(gf.value) * mult;
+      }
+      if (mf?.value) return parseFloat(mf.value) * 12;
+      return null;
+    })
+    .filter((v): v is number => v !== null && !isNaN(v));
+  if (perDocIncomes.length > 1) {
+    const minI = Math.min(...perDocIncomes), maxI = Math.max(...perDocIncomes);
+    if ((maxI - minI) / (minI || 1) > 0.05) {
+      reviewReasons.push(READINESS_REASONS.PAY_STUB_TOTAL_CONFLICT);
+    }
+  }
+
+  // GIG_INCOME_UNCORROBORATED — gig statement present with no corroborating employer evidence
+  const docTypes = new Set(sessionDocs.map(docTypeOf).filter(Boolean));
+  if (docTypes.has("gig_statement") && !docTypes.has("pay_stub") && !docTypes.has("employment_letter")) {
+    reviewReasons.push(READINESS_REASONS.GIG_INCOME_UNCORROBORATED);
+  }
+
+  // Generic fallback for any other checklist item the renter marked expired
   const expiredItems = SECTION8_CHECKLIST_2026.filter(item => statuses[item.id] === "expired");
-  if (expiredItems.some(i => i.id === "income_pay_stubs")) reviewReasons.push(READINESS_REASONS.DOCUMENT_EXPIRED);
-  else if (expiredItems.length > 0) reviewReasons.push(READINESS_REASONS.DOCUMENT_EXPIRED);
+  if (expiredItems.length > 0 && !reviewReasons.includes(READINESS_REASONS.EMPLOYMENT_LETTER_EXPIRED)) {
+    reviewReasons.push(READINESS_REASONS.DOCUMENT_EXPIRED);
+  }
   if (isNaN(hs) || hs < 1 || hs > 8) reviewReasons.push(READINESS_REASONS.NO_FROZEN_THRESHOLD);
 
   const readiness_status: ReadinessStatus = reviewReasons.length === 0 ? "READY_TO_REVIEW" : "NEEDS_REVIEW";
