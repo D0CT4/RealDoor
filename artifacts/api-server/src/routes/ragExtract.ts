@@ -317,9 +317,18 @@ router.post(
 
       // ── Filter to allowlist ──────────────────────────────────
       const allowedKeys = new Set(ALLOWED_EXTRACT_FIELDS.map((f) => f.key));
-      const filteredFields = (gptResult.fields ?? []).filter((f) =>
-        allowedKeys.has(f.key)
-      );
+      const filteredFields = (gptResult.fields ?? [])
+        .filter((f) => allowedKeys.has(f.key))
+        .map((f) => {
+          // ── bbox validation: clamp to 612×792 PDF point page (ADV-010) ──
+          if (f.bbox) {
+            const [x1, y1, x2, y2] = f.bbox;
+            const valid =
+              x1 >= 0 && y1 >= 0 && x2 <= 612 && y2 <= 792 && x1 < x2 && y1 < y2;
+            if (!valid) f.bbox = [50, 50, 562, 742]; // fallback within bounds
+          }
+          return f;
+        });
 
       // ── Store in session (only filtered fields, no raw text) ──
       updateSession(sid, { fields: filteredFields });
