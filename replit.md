@@ -2,7 +2,7 @@
 
 The project/brand name is **NIDO** (user-chosen). Artifact dir remains `artifacts/housing-navigator`.
 
-Bilingual (EN/ES) housing assistance tool for NYC renters: rent-burden calculator, assistance program guide, affordable listings, and the "RealDoor" Section 8 application-readiness copilot.
+Bilingual (EN/ES) housing assistance tool for NYC renters: rent-burden calculator, assistance program guide, affordable listings, and the "RealDoor" Section 8 application-readiness copilot. The copilot runs a 3-stage flow (upload & confirm → understand rules → prepare packet), flags uploaded documents that don't match any checklist item, and generates a schema-conformant scored `submission.json` (frozen FY2026 Boston MTSP thresholds, page-level bbox citations, READY_TO_REVIEW / NEEDS_REVIEW status — never an eligibility decision).
 
 ## Run & Operate
 
@@ -22,7 +22,9 @@ Bilingual (EN/ES) housing assistance tool for NYC renters: rent-burden calculato
 ## Where things live
 
 - `lib/api-spec/openapi.yaml` — source of truth for the HTTP contract
-- `artifacts/api-server/src/routes/` — health, housing (FMR/AMI/listings/eligibility/programs), copilot (extract/confirm/rules/checklist/packet/feedback/session-delete)
+- `artifacts/api-server/src/routes/` — health, housing (FMR/AMI/listings/eligibility/programs), copilot (extract/confirm/rules/checklist/packet/submission/feedback/session-delete)
+- `docs/ARCHITECTURE_AND_RISK.md` — hackathon deliverable: architecture diagram, deterministic-core/generative-edge split, risk table
+- `starter/` — Python starter-kit tests (`cd starter && python3 -m unittest discover -s tests`)
 - `artifacts/api-server/src/lib/copilotData.ts` — frozen 2026 Section 8 rules corpus, MTSP limits, checklist, session store
 - `artifacts/housing-navigator/src/pages/` — Home, Programs, Listings, Copilot
 - `artifacts/housing-navigator/src/components/copilot/` — Stage1Profile, Stage2Understand, Stage3Prepare
