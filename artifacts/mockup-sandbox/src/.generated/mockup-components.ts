@@ -3,5 +3,7 @@ type ModuleMap = Record<string, () => Promise<Record<string, unknown>>>;
 export const modules: ModuleMap = {
   "./components/mockups/nido-theme/ForestAmber.tsx": () => import("../components/mockups/nido-theme/ForestAmber.tsx"),
   "./components/mockups/nido-theme/NavyGlass.tsx": () => import("../components/mockups/nido-theme/NavyGlass.tsx"),
-  "./components/mockups/nido-theme/SlateTeal.tsx": () => import("../components/mockups/nido-theme/SlateTeal.tsx")
+  "./components/mockups/nido-theme/SlateTeal.tsx": () => import("../components/mockups/nido-theme/SlateTeal.tsx"),
+  "./components/mockups/realdoor-redesign/ModernEditorial.tsx": () => import("../components/mockups/realdoor-redesign/ModernEditorial.tsx"),
+  "./components/mockups/realdoor-redesign/RefinedInstitutional.tsx": () => import("../components/mockups/realdoor-redesign/RefinedInstitutional.tsx")
 };
