@@ -623,6 +623,9 @@ router.get("/copilot/checklist", (req, res): void => {
   // Auto-status inference from session documents
   const autoStatuses: Record<string, "present" | "expired" | "missing"> = {};
   const autoSource: Record<string, { documentName: string; documentType: string; documentDate: string | null }> = {};
+  // Documents whose extracted type had no checklist mapping — surfaced so the
+  // user knows why a checklist item wasn't auto-filled.
+  const unmatchedDocuments: { documentName: string; documentType: string }[] = [];
 
   if (sessionId) {
     const session = getSession(sessionId);
@@ -631,9 +634,15 @@ router.get("/copilot/checklist", (req, res): void => {
         const typeField = doc.fields.find((f) => f.key === "documentType" && f.value);
         if (!typeField?.value) continue;
         const checklistId = DOCTYPE_TO_CHECKLIST_ID[typeField.value];
-        if (!checklistId) continue;
+        if (!checklistId) {
+          unmatchedDocuments.push({ documentName: doc.name, documentType: typeField.value });
+          continue;
+        }
         const checklistItem = SECTION8_CHECKLIST_2026.find((i) => i.id === checklistId);
-        if (!checklistItem) continue;
+        if (!checklistItem) {
+          unmatchedDocuments.push({ documentName: doc.name, documentType: typeField.value });
+          continue;
+        }
         const dateField = doc.fields.find((f) => f.key === "documentDate" && f.value);
         const docDate = dateField?.value ?? null;
         const status = inferDocStatus(docDate, checklistItem.validityMonths, FROZEN_CHALLENGE_DATE);
@@ -661,6 +670,7 @@ router.get("/copilot/checklist", (req, res): void => {
     items: SECTION8_CHECKLIST_2026,
     autoStatuses,
     autoSource,
+    unmatchedDocuments,
     citations: [
       {
         rule_id: "CH-READINESS-001",

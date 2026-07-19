@@ -37,6 +37,9 @@ interface PacketData {
 // Auto-source info for a checklist item detected from Stage 1 extraction
 interface AutoSourceEntry { documentName: string; documentType: string; documentDate: string | null; }
 
+// Uploaded document whose extracted type didn't match any checklist item
+interface UnmatchedDoc { documentName: string; documentType: string; }
+
 // ── Confidence pill ───────────────────────────────────────────
 function ConfBadge({ c }: { c: string }) {
   const styles: Record<string, string> = {
@@ -92,6 +95,9 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
   const [detectionSources, setDetectionSources] = useState<Record<string, "auto" | "manual">>({});
   // autoSource: which document triggered auto-detection for each checklist item
   const [autoSource, setAutoSource] = useState<Record<string, AutoSourceEntry>>({});
+  // Documents whose extracted type had no checklist match (surfaced as a dismissible notice)
+  const [unmatchedDocs, setUnmatchedDocs] = useState<UnmatchedDoc[]>([]);
+  const [unmatchedDismissed, setUnmatchedDismissed] = useState(false);
   const [householdSize, setHouseholdSize] = useState<string>("");
   const [loadingChecklist, setLoadingChecklist] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -138,6 +144,7 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
         setStatuses(init);
         setDetectionSources(initSources);
         setAutoSource(autoSrc);
+        setUnmatchedDocs(Array.isArray(data.unmatchedDocuments) ? data.unmatchedDocuments : []);
       } catch {
         setError(t("Failed to load document checklist."));
       } finally {
@@ -293,6 +300,43 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
           </div>
         );
       })()}
+
+      {/* ── Unmatched documents notice ── */}
+      {unmatchedDocs.length > 0 && !unmatchedDismissed && (
+        <div role="status" aria-live="polite" className="rounded-md border border-blue-200 bg-blue-50 p-3 flex items-start gap-2.5 text-sm">
+          <FileText className="h-4 w-4 text-blue-700 flex-shrink-0 mt-0.5" aria-hidden="true" />
+          <div className="flex-1 min-w-0">
+            <span className="font-semibold text-blue-800">
+              {unmatchedDocs.length === 1
+                ? t("{count} uploaded document didn't match a checklist item", { count: unmatchedDocs.length })
+                : t("{count} uploaded documents didn't match a checklist item", { count: unmatchedDocs.length })}
+            </span>
+            <span className="text-blue-800/80 ml-1">
+              — {t("these weren't auto-filled. If one belongs to a checklist item below, set it manually.")}
+            </span>
+            <ul className="mt-1.5 space-y-0.5">
+              {unmatchedDocs.map((d, i) => (
+                <li key={`${d.documentName}-${i}`} className="text-xs text-blue-800 flex items-center gap-1.5 flex-wrap">
+                  <span aria-hidden="true">›</span>
+                  <span className="font-medium">{d.documentName}</span>
+                  <span className="text-blue-700/70">
+                    ({t("detected type:")}{" "}
+                    <code className="font-mono">{d.documentType}</code>)
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <button
+            type="button"
+            onClick={() => setUnmatchedDismissed(true)}
+            aria-label={t("Dismiss unmatched documents notice")}
+            className="flex-shrink-0 rounded p-0.5 text-blue-700 hover:bg-blue-100 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+          >
+            <XCircle className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+      )}
 
       {/* Status summary */}
       {(missingRequired.length > 0 || expiredItems.length > 0) && (
