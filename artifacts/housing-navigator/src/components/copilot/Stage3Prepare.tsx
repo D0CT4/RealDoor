@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   AlertCircle, AlertTriangle, CheckCircle2, Download,
-  FileDown, Loader2, Trash2, XCircle,
+  FileDown, Loader2, Trash2, XCircle, ShieldCheck, ShieldAlert, Package,
 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 
@@ -52,6 +52,8 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [previewJson, setPreviewJson] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [readinessStatus, setReadinessStatus] = useState<"READY_TO_REVIEW" | "NEEDS_REVIEW" | null>(null);
+  const [reviewReasons, setReviewReasons] = useState<string[]>([]);
 
   useEffect(() => {
     async function loadChecklist() {
@@ -85,6 +87,8 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
     if (!sessionId) { setError(t("No active session — please complete Stage 1 first.")); return; }
     setIsGenerating(true);
     setError(null);
+    setReadinessStatus(null);
+    setReviewReasons([]);
     try {
       const res = await fetch("/api/copilot/packet", {
         method: "POST",
@@ -94,6 +98,8 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
       const data = await res.json();
       if (!res.ok) { setError(data.error ? t(data.error) : t("Packet generation failed.")); return; }
       setPreviewJson(JSON.stringify(data.packet, null, 2));
+      if (data.readinessStatus) setReadinessStatus(data.readinessStatus);
+      if (Array.isArray(data.reviewReasons)) setReviewReasons(data.reviewReasons);
     } catch {
       setError(t("Network error — please try again."));
     } finally {
@@ -275,10 +281,47 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
           )}
         </div>
 
+        {/* ── Automatic Readiness Status (CH-READINESS-001) ── */}
+        {readinessStatus && (
+          <div
+            role="status"
+            aria-live="polite"
+            className={`rounded-md border p-3 flex items-start gap-3 ${
+              readinessStatus === "READY_TO_REVIEW"
+                ? "border-green-200 bg-green-50"
+                : "border-amber-300 bg-amber-50"
+            }`}
+          >
+            {readinessStatus === "READY_TO_REVIEW"
+              ? <ShieldCheck className="h-5 w-5 text-green-700 flex-shrink-0 mt-0.5" aria-hidden="true" />
+              : <ShieldAlert className="h-5 w-5 text-amber-700 flex-shrink-0 mt-0.5" aria-hidden="true" />}
+            <div className="flex-1">
+              <p className={`text-sm font-semibold ${readinessStatus === "READY_TO_REVIEW" ? "text-green-800" : "text-amber-800"}`}>
+                {t(readinessStatus)}
+              </p>
+              {reviewReasons.length > 0 ? (
+                <ul className="mt-1 space-y-0.5">
+                  {reviewReasons.map((r) => (
+                    <li key={r} className="text-xs text-amber-700 flex items-center gap-1">
+                      <span aria-hidden="true">›</span> <code className="font-mono">{r}</code>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-green-700 mt-0.5">{t("All checks passed. Packet is ready for human review.")}</p>
+              )}
+              <p className="text-[10px] text-muted-foreground mt-1.5">{t("Rule: CH-READINESS-001 — no eligibility determination is made.")}</p>
+            </div>
+          </div>
+        )}
+
         {/* Packet preview */}
         {previewJson && (
           <div>
-            <h4 className="text-xs font-semibold text-foreground mb-2 uppercase tracking-wide">{t("Packet Preview")}</h4>
+            <div className="flex items-center gap-2 mb-2">
+              <Package className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+              <h4 className="text-xs font-semibold text-foreground uppercase tracking-wide">{t("Packet Preview")}</h4>
+            </div>
             <div
               className="rounded-md border border-border bg-background overflow-auto max-h-80 p-3"
               role="region"

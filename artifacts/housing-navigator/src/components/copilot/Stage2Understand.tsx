@@ -6,18 +6,30 @@ import {
 import { useLanguage } from "@/contexts/LanguageContext";
 
 interface Citation {
+  rule_id?: string;
   authority: string;
-  effectiveDate: string;
-  url: string | null;
+  effectiveDate: string | null;
+  url?: string | null;
+  source_url?: string | null;
+  source_locator?: string | null;
   section?: string;
 }
 
 interface CalculatedValue {
   householdSize: number;
-  vliAnnual: number;
-  eliAnnual: number;
-  vliMonthly: number;
-  eliMonthly: number;
+  // Boston MTSP (primary — hackathon rubric)
+  limit60Annual?: number;
+  limit50Annual?: number;
+  limit60Monthly?: number;
+  limit50Monthly?: number;
+  // NYC VLI/ELI (retained for reference)
+  nycVliAnnual?: number;
+  nycEliAnnual?: number;
+  // Legacy field names
+  vliAnnual?: number;
+  eliAnnual?: number;
+  vliMonthly?: number;
+  eliMonthly?: number;
 }
 
 interface RulesResult {
@@ -380,22 +392,44 @@ export default function Stage2Understand({ sessionId }: Props) {
             {result.calculatedValue && (
               <div className="border-t border-border bg-muted/30 px-4 py-3">
                 <h4 className="text-xs font-semibold text-foreground mb-2 uppercase tracking-wide">
-                  {t("Calculated Thresholds — Household of {size}", { size: result.calculatedValue.householdSize })}
+                  {t("Frozen Thresholds — Household of {size}", { size: result.calculatedValue.householdSize })}
                 </h4>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div className="rounded border border-green-200 bg-green-50 p-2">
-                    <p className="text-xs text-muted-foreground">{t("Very Low Income (50% AMI)")}</p>
-                    <p className="font-semibold text-green-800">${result.calculatedValue.vliAnnual.toLocaleString()} {t("/ yr")}</p>
-                    <p className="text-xs text-muted-foreground">${result.calculatedValue.vliMonthly.toLocaleString()} {t("/ mo")}</p>
-                  </div>
-                  <div className="rounded border border-blue-200 bg-blue-50 p-2">
-                    <p className="text-xs text-muted-foreground">{t("Extremely Low Income (30% AMI)")}</p>
-                    <p className="font-semibold text-blue-800">${result.calculatedValue.eliAnnual.toLocaleString()} {t("/ yr")}</p>
-                    <p className="text-xs text-muted-foreground">${result.calculatedValue.eliMonthly.toLocaleString()} {t("/ mo")}</p>
-                  </div>
-                </div>
+                {/* Boston MTSP (primary) */}
+                {result.calculatedValue.limit60Annual !== undefined && (
+                  <>
+                    <p className="text-xs font-medium text-muted-foreground mb-1.5">Boston-Cambridge-Quincy HMFA (FY 2026 MTSP, frozen)</p>
+                    <div className="grid grid-cols-2 gap-3 text-sm mb-3">
+                      <div className="rounded border border-emerald-200 bg-emerald-50 p-2">
+                        <p className="text-xs text-muted-foreground">{t("60% AMI (LIHTC threshold)")}</p>
+                        <p className="font-semibold text-emerald-800">${result.calculatedValue.limit60Annual!.toLocaleString()} {t("/ yr")}</p>
+                        <p className="text-xs text-muted-foreground">${result.calculatedValue.limit60Monthly!.toLocaleString()} {t("/ mo")}</p>
+                      </div>
+                      <div className="rounded border border-blue-200 bg-blue-50 p-2">
+                        <p className="text-xs text-muted-foreground">{t("50% AMI (reference)")}</p>
+                        <p className="font-semibold text-blue-800">${result.calculatedValue.limit50Annual!.toLocaleString()} {t("/ yr")}</p>
+                        <p className="text-xs text-muted-foreground">${result.calculatedValue.limit50Monthly!.toLocaleString()} {t("/ mo")}</p>
+                      </div>
+                    </div>
+                  </>
+                )}
+                {/* NYC VLI/ELI (reference) */}
+                {(result.calculatedValue.nycVliAnnual ?? result.calculatedValue.vliAnnual) !== undefined && (
+                  <>
+                    <p className="text-xs font-medium text-muted-foreground mb-1.5">NYC — Section 8 VLI / ELI (FY 2026, reference)</p>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div className="rounded border border-green-200 bg-green-50 p-2">
+                        <p className="text-xs text-muted-foreground">{t("Very Low Income (50% AMI)")}</p>
+                        <p className="font-semibold text-green-800">${(result.calculatedValue.nycVliAnnual ?? result.calculatedValue.vliAnnual!).toLocaleString()} {t("/ yr")}</p>
+                      </div>
+                      <div className="rounded border border-slate-200 bg-slate-50 p-2">
+                        <p className="text-xs text-muted-foreground">{t("Extremely Low Income (30% AMI)")}</p>
+                        <p className="font-semibold text-slate-700">${(result.calculatedValue.nycEliAnnual ?? result.calculatedValue.eliAnnual!).toLocaleString()} {t("/ yr")}</p>
+                      </div>
+                    </div>
+                  </>
+                )}
                 <p className="text-xs text-muted-foreground mt-2 italic">
-                  {t("Income at or below VLI meets the Section 8 eligibility threshold. Priority is given to ELI households. These are thresholds — no determination is made here.")}
+                  {t("These are frozen thresholds only — no eligibility determination is made here (CH-DECISION-001).")}
                 </p>
               </div>
             )}
