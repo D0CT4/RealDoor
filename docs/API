@@ -1,0 +1,234 @@
+# RealDoor — API Reference
+
+All routes are mounted under `/api` by the Express router in `artifacts/api-server/src/routes/index.ts`.
+
+**Contract status.** `lib/api-spec/openapi.yaml` is the source of truth for the *housing* routes and is what Orval generates from. The copilot, LIHTC, HUD and translate surfaces were built past the spec and are documented here only. Bringing them into the spec is tracked as open work.
+
+---
+
+## Health
+
+### `GET /api/healthz`
+
+Liveness probe. Returns a status payload.
+
+---
+
+## Housing
+
+Data is served from hardcoded frozen constants in `src/lib/housingData.ts`. No database.
+
+### `GET /api/fmr`
+
+Fair Market Rent for a borough.
+
+| Param | In | Type | Notes |
+|---|---|---|---|
+| `borough` | query | enum | NYC borough |
+
+### `GET /api/ami`
+
+Area Median Income figures for a borough.
+
+| Param | In | Type |
+|---|---|---|
+| `borough` | query | enum |
+
+### `GET /api/listings`
+
+Affordable housing listings, optionally filtered by borough.
+
+| Param | In | Type |
+|---|---|---|
+| `borough` | query | enum (optional) |
+
+### `POST /api/eligibility`
+
+Computes rent burden and compares against FMR and AMI for the household.
+
+Request body carries income, rent, household size, and borough. Returns a burden status, comparison figures, and program matches.
+
+### `GET /api/programs`
+
+The full assistance-program catalog with plain-language descriptions and application links.
+
+---
+
+## Copilot
+
+The application-readiness feature. **No endpoint in this group returns an eligibility decision.** Readiness is computed, never generated.
+
+### Extraction and confirmation
+
+#### `POST /api/copilot/extract`
+
+Extract allowlisted fields from supplied document text.
+
+```jsonc
+{
+  "documentText": "string",   // raw text of the document
+  "sessionId": "string?",     // reused only if it already exists (anti-fixation)
+  "documentId": "string?"
+}
+```
+
+Returns extracted fields, each carrying `page`, `bbox`, `sourceDocId`, a confidence level, and a source snippet.
+
+#### `POST /api/copilot/rag-extract`
+
+Document *upload* variant, defined in `src/routes/ragExtract.ts`. Accepts either:
+
+- `multipart/form-data` — `{ file: File, sessionId?: string }`
+- `application/json` — `{ documentText, sessionId?, documentId? }`
+
+Pipeline: parse to text (`pdf-parse` v2 for PDFs, `mammoth` for DOCX, vision for images) → sliding-window chunk if over threshold → embed chunks with `text-embedding-3-small` → cosine-similarity retrieval of top-K context → LLM field extraction under the same allowlist and security constraints as `/extract`.
+
+**Constraints.** Multer memory storage only — nothing is written to disk. 10 MB file limit. MIME allowlist. Raw document text is never persisted to the session.
+
+Returns the same JSON shape as `/copilot/extract`, so downstream stages are unchanged.
+
+#### `POST /api/copilot/confirm`
+
+Renter confirms or corrects the extracted values. Nothing proceeds on unconfirmed data.
+
+```jsonc
+{ "sessionId": "string", "confirmedFields": { }, "consent": true }
+```
+
+Consent is recorded as an action in the consent log — never with raw document text.
+
+### Calculation
+
+#### `POST /api/copilot/annualize`
+
+```jsonc
+{ "amount": 1200, "frequency": "biweekly", "householdSize": 3 }
+```
+
+Deterministic. Multiplies by the frequency table (`weekly` ×52, `biweekly` ×26, `semimonthly` ×24, `monthly` ×12, `annual` ×1), then compares against the frozen FY 2026 Boston MTSP 60% threshold.
+
+Returns a comparison of `below_or_equal` | `above` | `no_frozen_threshold`. Household size above 8 always returns `no_frozen_threshold`.
+
+### Rules
+
+#### `POST /api/copilot/rules`
+
+```jsonc
+{ "question": "string", "householdSize": 3 }
+```
+
+Answers from the frozen corpus. Every answer carries `rule_id`, authority tier, effective date, and source URL. Questions matching a refusal category are declined with the governing rule cited — see [SAFETY.md](SAFETY.md).
+
+#### `GET /api/copilot/rules/corpus`
+
+The full 11-rule corpus: `HUD-MTSP-001..003`, `HUD-DATA-001`, `HUD-GEO-001`, `FED-LIHTC-001`, `FED-MONITOR-001`, `CH-INCOME-001`, `CH-READINESS-001`, `CH-SAFETY-001`, `CH-DECISION-001`.
+
+#### `GET /api/copilot/mtsp`
+
+The frozen FY 2026 MTSP threshold table.
+
+#### `GET /api/copilot/qa` · `GET /api/copilot/qa/:qaId`
+
+The curated question-and-answer set, listed and individually addressable.
+
+### Checklist and packet
+
+#### `GET /api/copilot/checklist?sessionId=...`
+
+The document checklist. When a `sessionId` is supplied, item statuses are auto-populated from Stage 1 extraction evidence and each auto-detected item is marked with its detection source.
+
+#### `GET /api/copilot/checklists` · `GET /api/copilot/checklists/:householdId`
+
+Checklist templates, listed and by household.
+
+#### `POST /api/copilot/packet`
+
+```jsonc
+{
+  "sessionId": "string",
+  "itemStatuses": { },
+  "householdSize": 3,
+  "detectionSources": { }
+}
+```
+
+Assembles the packet and computes readiness automatically. Returns `readinessStatus` (`READY_TO_REVIEW` | `NEEDS_REVIEW`) plus a `reviewReasons` array.
+
+Reason codes are derived from session document evidence — document type, document date, and per-document annualized income variance over 5% — never from checklist item labels. Granular codes include `PAY_STUB_TOTAL_CONFLICT`, `EMPLOYMENT_LETTER_EXPIRED`, and `GIG_INCOME_UNCORROBORATED`. `MISSING_REQUIRED_DOCUMENT`, `DOCUMENT_EXPIRED` and `NO_FROZEN_THRESHOLD` act as fallbacks.
+
+Governed by `CH-READINESS-001` against the frozen date 2026-07-18 with a 60-day currency window.
+
+#### `POST /api/copilot/submission`
+
+```jsonc
+{ "sessionId": "string", "householdId": "string", "householdSize": 3, "itemStatuses": { } }
+```
+
+Returns the schema-conformant submission object:
+
+```jsonc
+{
+  "household_id": "string",
+  "annualized_income": 0,
+  "comparison": "below_or_equal | above | no_frozen_threshold",
+  "readiness_status": "READY_TO_REVIEW | NEEDS_REVIEW",
+  "review_reasons": [],
+  "citations": []
+}
+```
+
+### Feedback and session control
+
+#### `POST /api/copilot/feedback`
+
+```jsonc
+{ "sessionId": "string", "question": "string", "rating": 1, "deterministic": true, "abstained": false }
+```
+
+#### `GET /api/copilot/feedback/stats`
+
+Aggregate feedback statistics.
+
+#### `GET /api/copilot/adversarial`
+
+The adversarial test-case set covering all safety pattern categories.
+
+#### `DELETE /api/copilot/session/:sessionId`
+
+Renter-triggered session deletion. Sessions also expire automatically after a 30-minute TTL.
+
+---
+
+## LIHTC
+
+### `GET /api/lihtc`
+
+All 32 frozen HUD LIHTC property records, with a disclaimer and a `HUD-DATA-001` citation. Records are exact — nothing is fabricated or interpolated.
+
+**Availability is unknown** and labeled as such. RealDoor makes no vacancy claims.
+
+### `GET /api/lihtc/:hudId`
+
+A single property by HUD identifier.
+
+---
+
+## HUD (live, supplemental)
+
+Proxied through `src/lib/hudClient.ts`. **Supplemental context only** — clearly labeled in the UI and never used for any scored computation.
+
+### `GET /api/hud/fmr`
+
+Live Fair Market Rent lookup.
+
+### `GET /api/hud/il`
+
+Live Income Limits lookup.
+
+---
+
+## Translation
+
+### `POST /api/translate`
+
+On-demand translation of UI strings and answers into 18 languages beyond the built-in English and Spanish. The translation prompt is subject to the same injection guards as the rest of the copilot surface.
