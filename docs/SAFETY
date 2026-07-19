@@ -1,0 +1,116 @@
+# RealDoor — Safety Model
+
+RealDoor handles income documents from people applying for housing assistance. The failure modes that matter are not crashes — they are a confident wrong answer that costs someone their application, or a leaked document that costs them their privacy.
+
+Safety here is structural. It lives in the architecture, not in a disclaimer.
+
+---
+
+## 1. The system never decides
+
+**Invariant:** RealDoor does not determine, score, or rank eligibility.
+
+The LLM is used for exactly one thing: locating 7 allowlisted fields inside document text. It is never asked to judge.
+
+Everything scored is deterministic TypeScript:
+
+- income annualization (frequency table multiplication)
+- comparison against frozen FY 2026 Boston MTSP 60% thresholds
+- readiness status derivation
+
+The same logic is mirrored in `starter/src/calculate.py` with unit tests, so the arithmetic is independently verifiable.
+
+Output is `READY_TO_REVIEW` or `NEEDS_REVIEW` with cited reasons. That is a statement about **document completeness**, not about the household.
+
+Requests for a decision are refused under `CH-DECISION-001`.
+
+---
+
+## 2. Refusal categories
+
+Implemented as pattern gates in `artifacts/api-server/src/routes/copilot.ts`. Six categories:
+
+| Constant | Refuses |
+|---|---|
+| `INJECTION_PATTERNS` | Prompt injection attempts embedded in document text or questions |
+| `DECISION_PATTERNS` | Requests for an eligibility determination |
+| `CROSS_APPLICANT_PATTERNS` | Attempts to read across applicants or sessions |
+| `VACANCY_PATTERNS` | Claims about unit availability, including "units currently available" |
+| `PROTECTED_TRAIT_PATTERNS` | Inference about disability, immigration status, race |
+| `WRONG_YEAR_PATTERNS` | Requests for prior-year thresholds |
+
+Each refusal cites the governing rule (`CH-SAFETY-001`, `CH-DECISION-001`, `HUD-DATA-001`) with its effective date, rather than declining opaquely. The renter learns *why*.
+
+`GET /api/copilot/adversarial` exposes the test-case set covering all six.
+
+---
+
+## 3. Data minimization
+
+**The extraction allowlist is the privacy boundary.** Only 7 fields are extractable. There is no SSN field, no address field, no account-number field — not filtered out downstream, but absent from the schema entirely, so there is nothing to leak.
+
+The allowlist filter (`ALLOWED_EXTRACT_FIELDS`) and the extraction system prompt must stay in sync. A field the prompt requests but the allowlist omits is silently stripped.
+
+Additional measures:
+
+- **Uploads never touch disk.** Multer memory storage, 10 MB cap, MIME allowlist.
+- **Raw document text is never stored** in the session.
+- **The consent log records actions, not content.** What the renter agreed to, not what the document said.
+- **Sessions are ephemeral.** In-memory, 30-minute TTL, plus an explicit `DELETE /api/copilot/session/:sessionId` under renter control.
+- **Anti-fixation on session IDs.** A client-supplied `sessionId` is reused only if it already exists in the store; otherwise a fresh UUID is minted. A caller cannot pin a victim to a chosen session.
+
+---
+
+## 4. Verification by the human
+
+Extraction is treated as a proposal, never as truth.
+
+- Every field surfaces with a **confidence level** and the **source snippet** it came from.
+- Every field carries **page number and bounding box**, so a renter can look at the document and check.
+- **Nothing proceeds on unconfirmed data.** The renter must confirm or edit each value before it is used in any computation.
+- Uploaded documents that match no checklist item are **flagged**, not silently dropped.
+
+---
+
+## 5. Freshness and staleness
+
+Housing thresholds go stale annually, and a stale threshold is a wrong answer wearing a correct answer's clothes.
+
+- All thresholds are **frozen constants** from the FY 2026 HERA report, never model output.
+- The system operates against a **frozen challenge date of 2026-07-18**.
+- Evidence older than the **60-day currency window** is flagged under `CH-CURRENCY-001`.
+- Prior-year threshold requests get an explicit refusal citing effective dates, rather than a plausible-looking wrong number.
+
+---
+
+## 6. Risk table
+
+| Risk | Mitigation |
+|---|---|
+| Model invents an eligibility decision | Decision-pattern refusal (`CH-DECISION-001`); readiness computed, not generated |
+| Prompt injection via document text | Injection patterns refused; extraction prompt allowlists 7 fields; raw text never stored |
+| PII overcollection | No SSN/address/account fields in the schema; memory-only storage; session delete endpoint |
+| Protected-trait inference | Refusal patterns (`CH-SAFETY-001`); no such fields exist in the schema |
+| Stale or wrong-year limits | Frozen FY 2026 constants; wrong-year questions refused with effective dates cited |
+| Vacancy misinformation | LIHTC data labeled "availability unknown" per `HUD-DATA-001` |
+| Expired evidence | 60-day currency convention enforced against the frozen date |
+| Hallucinated extraction values | Confidence levels and source snippets shown; renter must confirm every field |
+| Session fixation | Client `sessionId` reused only if already present; otherwise fresh UUID |
+| Cross-applicant leakage | Cross-applicant pattern refusal; sessions isolated in the store |
+
+---
+
+## 7. Accessibility
+
+Markup is written toward **WCAG 2.2 AA**. This is a safety property, not a nicety: an application flow that a screen-reader user cannot complete has failed the person it exists to serve.
+
+---
+
+## 8. What this does not cover
+
+Honest limits, stated plainly:
+
+- In-memory sessions mean a restart clears state. A production deployment needs encrypted persistence and a written retention policy.
+- Bounding boxes fall back to page-level when exact word geometry is unavailable.
+- Pattern-based refusal gates are a floor, not a ceiling. They catch known phrasings; they are not a substitute for review of novel adversarial input.
+- The frozen corpus is a simulation artifact. Real deployment requires a maintained, versioned rules pipeline with a defined update cadence.
