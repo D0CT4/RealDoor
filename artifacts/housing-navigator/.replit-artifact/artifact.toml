@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/"
-title = "Housing Navigator"
+title = "RealDoor"
 version = "1.0.0"
 id = "artifacts/housing-navigator"
 router = "path"
