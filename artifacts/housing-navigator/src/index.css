@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&family=Sora:wght@400;500;600;700&display=swap');
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @plugin "@tailwindcss/typography";
@@ -100,8 +100,8 @@
   --input: 210 20% 85%;
   --ring: 210 60% 19%;
   
-  --app-font-sans: 'Inter', sans-serif;
-  --app-font-serif: 'Space Grotesk', sans-serif;
+  --app-font-sans: 'Onest', sans-serif;
+  --app-font-serif: 'Sora', sans-serif;
   --app-font-mono: Menlo, monospace;
   --radius: 0.5rem;
 }
