@@ -103,6 +103,10 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [readinessStatus, setReadinessStatus] = useState<"READY_TO_REVIEW" | "NEEDS_REVIEW" | null>(null);
   const [reviewReasons, setReviewReasons] = useState<string[]>([]);
+  const [householdId, setHouseholdId] = useState<string>("");
+  const [submissionJson, setSubmissionJson] = useState<string | null>(null);
+  const [submissionStatus, setSubmissionStatus] = useState<"READY_TO_REVIEW" | "NEEDS_REVIEW" | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     async function loadChecklist() {
@@ -191,6 +195,46 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
     const a = document.createElement("a");
     a.href = url;
     a.download = `realdoor-packet-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function generateSubmission() {
+    if (!sessionId) { setError(t("No active session — please complete Stage 1 first.")); return; }
+    setIsSubmitting(true);
+    setError(null);
+    setSubmissionJson(null);
+    setSubmissionStatus(null);
+    try {
+      const hs = householdSize ? parseInt(householdSize, 10) : undefined;
+      const res = await fetch("/api/copilot/submission", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId,
+          householdId: householdId.trim() || undefined,
+          householdSize: hs,
+          itemStatuses: statuses,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error ? t(data.error) : t("Submission generation failed.")); return; }
+      setSubmissionJson(JSON.stringify(data, null, 2));
+      if (data.readiness_status) setSubmissionStatus(data.readiness_status);
+    } catch {
+      setError(t("Network error — please try again."));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  function downloadSubmission() {
+    if (!submissionJson) return;
+    const blob = new Blob([submissionJson], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "submission.json";
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -414,6 +458,76 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
               <Download className="h-4 w-4" aria-hidden="true" />
               {t("Download Packet (.json)")}
             </button>
+          )}
+        </div>
+
+        {/* ── Scored submission (submission.schema.json) ── */}
+        <div className="rounded-md border border-border p-4 space-y-3">
+          <div>
+            <h3 className="text-sm font-semibold text-primary">{t("Scored Submission")}</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {t("Generates a submission.json conforming to the challenge schema — household ID, annualized income, threshold comparison, readiness status, and evidence citations. This is not an eligibility decision.")}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="text"
+              value={householdId}
+              onChange={(e) => { setHouseholdId(e.target.value); setSubmissionJson(null); }}
+              placeholder={t("Household ID (e.g. HH-001)")}
+              className="w-48 rounded border border-input bg-background px-2 py-1.5 text-sm focus-visible:ring-2 focus-visible:ring-primary outline-none"
+              aria-label={t("Household ID for the scored submission")}
+            />
+            <button
+              type="button"
+              onClick={generateSubmission}
+              disabled={isSubmitting}
+              className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+              aria-busy={isSubmitting}
+            >
+              {isSubmitting
+                ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                : <FileDown className="h-4 w-4" aria-hidden="true" />}
+              {isSubmitting ? t("Generating…") : t("Generate Submission")}
+            </button>
+            {submissionJson && (
+              <button
+                type="button"
+                onClick={downloadSubmission}
+                className="inline-flex items-center gap-2 rounded-md bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-800 focus-visible:ring-2 focus-visible:ring-green-700 focus-visible:outline-none"
+                aria-label={t("Download submission.json")}
+              >
+                <Download className="h-4 w-4" aria-hidden="true" />
+                {t("Download submission.json")}
+              </button>
+            )}
+          </div>
+          {submissionStatus && (
+            <div
+              role="status"
+              aria-live="polite"
+              className={`rounded-md border p-3 flex items-start gap-2.5 text-sm ${
+                submissionStatus === "READY_TO_REVIEW"
+                  ? "border-green-200 bg-green-50 text-green-900"
+                  : "border-amber-300 bg-amber-50 text-amber-900"
+              }`}
+            >
+              {submissionStatus === "READY_TO_REVIEW"
+                ? <CheckCircle2 className="h-4 w-4 flex-shrink-0 mt-0.5" aria-hidden="true" />
+                : <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" aria-hidden="true" />}
+              <div>
+                <span className="font-semibold">{submissionStatus === "READY_TO_REVIEW" ? t("READY_TO_REVIEW") : t("NEEDS_REVIEW")}</span>
+                {" — "}
+                {submissionStatus === "READY_TO_REVIEW"
+                  ? t("All required evidence present and current. A qualified reviewer makes the final determination.")
+                  : t("Evidence gaps or conflicts detected — see review_reasons in the generated file.")}
+              </div>
+            </div>
+          )}
+          {submissionJson && (
+            <pre className="max-h-64 overflow-auto rounded bg-muted p-3 text-xs" aria-label={t("Submission JSON preview")}>
+              {submissionJson}
+            </pre>
           )}
         </div>
 
