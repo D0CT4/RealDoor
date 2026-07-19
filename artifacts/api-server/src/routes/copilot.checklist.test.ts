@@ -236,6 +236,118 @@ describe("GET /api/copilot/checklist", () => {
     deleteSession(sid);
   });
 
+  // ── unmatchedDocuments ────────────────────────────────────────
+
+  it("reports a document with an unmapped type (e.g. rental_history) in unmatchedDocuments", async () => {
+    createSession(sid, {
+      fields: [],
+      documents: [makeDoc("rental-history.pdf", "rental_history", FRESH_DATE)],
+      consentLog: [],
+    });
+
+    const res = await request(app).get(`/api/copilot/checklist?sessionId=${sid}`);
+    expect(res.status).toBe(200);
+    expect(res.body.unmatchedDocuments).toEqual([
+      { documentName: "rental-history.pdf", documentType: "rental_history" },
+    ]);
+    expect(res.body.autoStatuses).toEqual({});
+
+    deleteSession(sid);
+  });
+
+  it("reports 'other' and 'application_summary' as unmatched (intentional mapping gaps)", async () => {
+    createSession(sid, {
+      fields: [],
+      documents: [
+        makeDoc("mystery.pdf", "other", FRESH_DATE),
+        makeDoc("summary.pdf", "application_summary", FRESH_DATE),
+      ],
+      consentLog: [],
+    });
+
+    const res = await request(app).get(`/api/copilot/checklist?sessionId=${sid}`);
+    expect(res.status).toBe(200);
+    expect(res.body.unmatchedDocuments).toEqual([
+      { documentName: "mystery.pdf", documentType: "other" },
+      { documentName: "summary.pdf", documentType: "application_summary" },
+    ]);
+
+    deleteSession(sid);
+  });
+
+  it("does not report mapped documentTypes in unmatchedDocuments", async () => {
+    createSession(sid, {
+      fields: [],
+      documents: [
+        makeDoc("pay-stub.pdf", "pay_stub", FRESH_DATE),
+        makeDoc("tax-return.pdf", "tax_form", "2025-04-15"),
+        makeDoc("award-letter.pdf", "benefit_letter", "2026-04-01"),
+      ],
+      consentLog: [],
+    });
+
+    const res = await request(app).get(`/api/copilot/checklist?sessionId=${sid}`);
+    expect(res.status).toBe(200);
+    expect(res.body.unmatchedDocuments).toEqual([]);
+
+    deleteSession(sid);
+  });
+
+  it("splits mixed sessions correctly: mapped docs go to autoStatuses, unmapped to unmatchedDocuments", async () => {
+    createSession(sid, {
+      fields: [],
+      documents: [
+        makeDoc("pay-stub.pdf", "pay_stub", FRESH_DATE),
+        makeDoc("rental-history.pdf", "rental_history", FRESH_DATE),
+      ],
+      consentLog: [],
+    });
+
+    const res = await request(app).get(`/api/copilot/checklist?sessionId=${sid}`);
+    expect(res.status).toBe(200);
+    expect(res.body.autoStatuses["income_pay_stubs"]).toBe("present");
+    expect(res.body.unmatchedDocuments).toEqual([
+      { documentName: "rental-history.pdf", documentType: "rental_history" },
+    ]);
+
+    deleteSession(sid);
+  });
+
+  it("does not report documents with no extracted documentType as unmatched", async () => {
+    const docWithoutType: DocumentRecord = {
+      id: "no-type",
+      name: "no-type.pdf",
+      sourceType: "pdf",
+      fields: [makeField("documentDate", FRESH_DATE)],
+      processedAt: new Date().toISOString(),
+    };
+    const docWithNullType: DocumentRecord = {
+      id: "null-type",
+      name: "null-type.pdf",
+      sourceType: "pdf",
+      fields: [makeField("documentType", null)],
+      processedAt: new Date().toISOString(),
+    };
+    createSession(sid, {
+      fields: [],
+      documents: [docWithoutType, docWithNullType],
+      consentLog: [],
+    });
+
+    const res = await request(app).get(`/api/copilot/checklist?sessionId=${sid}`);
+    expect(res.status).toBe(200);
+    expect(res.body.unmatchedDocuments).toEqual([]);
+    expect(res.body.autoStatuses).toEqual({});
+
+    deleteSession(sid);
+  });
+
+  it("returns an empty unmatchedDocuments array when no sessionId is provided", async () => {
+    const res = await request(app).get("/api/copilot/checklist");
+    expect(res.status).toBe(200);
+    expect(res.body.unmatchedDocuments).toEqual([]);
+  });
+
   it("includes frozenChallengeDate, currencyDays, and citations in the response", async () => {
     const res = await request(app).get("/api/copilot/checklist");
     expect(res.status).toBe(200);
