@@ -48,10 +48,7 @@ Thumbs.db
 .cache/
 .local/
 
-# Replit agent auto-generated folder snapshots (can leak PII/tokens from
-# attached files and duplicate build output already tracked elsewhere)
-attached_assets/attached_assets_*.zip
-attached_assets/artifacts_*.zip
-attached_assets/lib_*.zip
-attached_assets/scripts_*.zip
+# Replit agent chat-paste staging area (not part of the app; can leak
+# PII/tokens from attached files) — keep it out of version control
+attached_assets/
 *.pkpass
