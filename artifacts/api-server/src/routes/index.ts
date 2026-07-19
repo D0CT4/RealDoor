@@ -5,6 +5,7 @@ import copilotRouter from "./copilot";
 import ragExtractRouter from "./ragExtract";
 import translateRouter from "./translate";
 import lihtcRouter from "./lihtc";
+import hudRouter from "./hud";
 
 const router: IRouter = Router();
 
@@ -14,5 +15,6 @@ router.use(ragExtractRouter);
 router.use(copilotRouter);
 router.use(translateRouter);
 router.use(lihtcRouter);
+router.use(hudRouter);
 
 export default router;
