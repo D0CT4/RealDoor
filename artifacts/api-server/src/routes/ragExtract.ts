@@ -62,8 +62,10 @@ const INJECTION_PATTERNS = [
   /disregard\s+(all|previous|the)/i,
   /\[system\]/i,
   /###\s*system/i,
-  /mark\s+(approved|eligible|denied)/i,
+  /mark\s+(approved|eligible|denied|ineligible)/i,
   /override\s+(the\s+)?(rules?|system|instructions?)/i,
+  /change\s+(the\s+)?(system|challenge)\s+instructions?/i,
+  /embedded\s+text\s+can\s+(now|override|change)/i,
 ];
 
 // ── RAG helpers ────────────────────────────────────────────────

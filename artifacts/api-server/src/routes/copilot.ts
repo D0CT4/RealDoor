@@ -59,6 +59,8 @@ const DECISION_PATTERNS = [
   /are\s+we\s+eligible/i,
   /can\s+i\s+get\s+(a\s+)?voucher/i,
   /approve|deny|reject|score|rank/i,
+  /fair.?housing\s+(decision|ruling|determination)/i,
+  /prioritize\s+(my|this|our)\s+(application|household)/i,
 ];
 
 // ── Cross-applicant data-leak refusal patterns ────────────────
@@ -82,12 +84,14 @@ const VACANCY_PATTERNS = [
 
 // ── Protected-trait inference refusal patterns ────────────────
 const PROTECTED_TRAIT_PATTERNS = [
-  /infer\s+(disability|immigration\s+status|citizenship|ethnicity|race|religion|health)/i,
+  /infer\s+(disability|immigration\s+status|citizenship|ethnicity|race|religion|health|family\s+relationship)/i,
   /disability\s+status/i,
   /immigration\s+status/i,
   /are\s+they\s+(disabled|undocumented|illegal)/i,
   /determine\s+(race|ethnicity|religion|disability)/i,
   /can\s+(you\s+)?(tell|guess)\s+(their|someone's)\s+(race|disability|status)/i,
+  /infer\s+(family\s+(status|relationship|composition))/i,
+  /is\s+(he|she|they)\s+(undocumented|illegal|disabled|sick)/i,
 ];
 
 // ── Wrong-year threshold refusal patterns ─────────────────────
