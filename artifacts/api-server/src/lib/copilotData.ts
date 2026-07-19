@@ -445,18 +445,18 @@ export const SECTION8_CHECKLIST_2026: ChecklistItem[] = [
 // ── Document-type → Checklist-ID mapping (Step 1) ────────────
 // Maps extracted `documentType` values from the RAG extractor to their
 // corresponding checklist item IDs in SECTION8_CHECKLIST_2026.
+// Maps the 7 GPT-extractable documentType values to SECTION8_CHECKLIST_2026 IDs.
+// Only include types the extraction prompt can actually return; omit anything that
+// would produce a false-positive (e.g. application_summary is not a pay stub).
 export const DOCTYPE_TO_CHECKLIST_ID: Record<string, string> = {
-  pay_stub:            "income_pay_stubs",
-  employment_letter:   "income_pay_stubs",
-  gig_statement:       "income_pay_stubs",
-  tax_form:            "tax_return",
-  bank_statement:      "bank_statements",
-  photo_id:            "photo_id",
-  birth_certificate:   "birth_certificate",
-  social_security_card:"social_security",
-  immigration_document:"immigration_status",
-  benefit_letter:      "benefit_letter",
-  application_summary: "income_pay_stubs", // closest proxy
+  pay_stub:           "income_pay_stubs",
+  employment_letter:  "income_pay_stubs",
+  gig_statement:      "income_pay_stubs",
+  tax_form:           "tax_return",
+  bank_statement:     "bank_statements",
+  benefit_letter:     "benefit_letter",
+  // "other" and "application_summary" are deliberately omitted —
+  // they cannot reliably identify a specific checklist document.
 };
 
 /**

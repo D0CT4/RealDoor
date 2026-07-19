@@ -229,6 +229,27 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
         </p>
       </div>
 
+      {/* ── Auto-detection banner ── */}
+      {(() => {
+        const autoCount = Object.values(detectionSources).filter((s) => s === "auto").length;
+        if (autoCount === 0) return null;
+        return (
+          <div role="status" aria-live="polite" className="rounded-md border border-primary/30 bg-primary/5 p-3 flex items-start gap-2.5 text-sm">
+            <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" aria-hidden="true" />
+            <div>
+              <span className="font-semibold text-primary">
+                {autoCount === 1
+                  ? t("{count} item pre-filled from your uploaded document", { count: autoCount })
+                  : t("{count} items pre-filled from your uploaded documents", { count: autoCount })}
+              </span>
+              <span className="text-muted-foreground ml-1">
+                — {t("review each and adjust if needed. You can always override.")}
+              </span>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Status summary */}
       {(missingRequired.length > 0 || expiredItems.length > 0) && (
         <div role="status" aria-live="polite" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 space-y-1">
