@@ -1,48 +1,36 @@
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2, ClipboardList, FileSearch, HelpCircle, Shield } from "lucide-react";
+import { ClipboardList, FileSearch, HelpCircle, Shield } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import Stage1Profile, { type ExtractedField } from "@/components/copilot/Stage1Profile";
 import Stage2Understand from "@/components/copilot/Stage2Understand";
 import Stage3Prepare from "@/components/copilot/Stage3Prepare";
 
-type Stage = 1 | 2 | 3;
+type Tab = "apply" | "understand";
 
-const STAGES = [
-  { id: 1 as Stage, label: "Profile",    shortLabel: "1",  icon: FileSearch,   desc: "Extract & confirm" },
-  { id: 2 as Stage, label: "Understand", shortLabel: "2",  icon: HelpCircle,   desc: "Rules & citations" },
-  { id: 3 as Stage, label: "Prepare",    shortLabel: "3",  icon: ClipboardList, desc: "Checklist & packet" },
+const TABS = [
+  { id: "apply" as Tab,      label: "Apply",      icon: FileSearch,    desc: "Upload & prepare" },
+  { id: "understand" as Tab, label: "Understand",  icon: HelpCircle,    desc: "Rules & citations" },
 ];
 
 export default function Copilot() {
   const { t } = useLanguage();
-  const [stage, setStage] = useState<Stage>(1);
+  const [tab, setTab] = useState<Tab>("apply");
   const [sessionId, setSessionId] = useState<string | null>(() => sessionStorage.getItem("copilot_session_id"));
-  const [profileComplete, setProfileComplete] = useState(false);
   const mainRef = useRef<HTMLDivElement>(null);
 
-  // Skip to stage 2 if session already confirmed
-  useEffect(() => {
-    if (sessionId) setProfileComplete(true);
-  }, []);
+  // Restore session on mount
+  useEffect(() => {}, []);
 
   function handleProfileConfirmed(sid: string, _fields: ExtractedField[]) {
     setSessionId(sid);
-    setProfileComplete(true);
-    setStage(2);
+    // Stay on Apply tab — checklist below auto-updates
     mainRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   function handleSessionDeleted() {
     setSessionId(null);
-    setProfileComplete(false);
-    setStage(1);
     sessionStorage.removeItem("copilot_session_id");
-  }
-
-  function goToStage(s: Stage) {
-    if (s === 1) { setStage(1); return; }
-    if (s === 2) { setStage(2); return; }
-    if (s === 3) { setStage(3); return; }
+    setTab("apply");
   }
 
   return (
@@ -82,82 +70,79 @@ export default function Copilot() {
           </div>
         </header>
 
-        {/* Stage navigation */}
-        <nav aria-label={t("Application-readiness stages")}>
-          <ol className="flex gap-0 rounded-lg border border-border overflow-hidden" role="list">
-            {STAGES.map((s, idx) => {
-              const isActive = stage === s.id;
-              const isDone = profileComplete && s.id === 1;
-              const isAccessible = s.id === 1 || profileComplete || s.id <= stage;
-              const Icon = s.icon;
+        {/* Tab navigation */}
+        <nav aria-label={t("Copilot sections")}>
+          <div className="flex gap-0 rounded-lg border border-border overflow-hidden">
+            {TABS.map((t_) => {
+              const isActive = tab === t_.id;
+              const Icon = t_.icon;
               return (
-                <li key={s.id} className="flex-1" role="listitem">
-                  <button
-                    type="button"
-                    onClick={() => isAccessible && goToStage(s.id)}
-                    disabled={!isAccessible}
-                    aria-current={isActive ? "step" : undefined}
-                    aria-label={`${t("Stage")} ${s.id}: ${t(s.label)} — ${t(s.desc)}${isDone ? ` (${t("complete")})` : isActive ? ` (${t("current")})` : ""}`}
-                    className={`w-full flex flex-col items-center gap-1 py-3 px-2 text-xs font-medium transition-colors border-r last:border-r-0 border-border focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none
-                      ${isActive ? "bg-primary text-primary-foreground" : isDone ? "bg-green-50 text-green-700" : isAccessible ? "bg-background text-muted-foreground hover:bg-muted" : "bg-muted/30 text-muted-foreground/50 cursor-not-allowed"}`}
-                  >
-                    <div className="flex items-center gap-1.5">
-                      {isDone
-                        ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                        : <Icon className="h-4 w-4" aria-hidden="true" />}
-                      <span className="hidden sm:inline">{t(s.label)}</span>
-                      <span className="sm:hidden font-bold">{s.shortLabel}</span>
-                    </div>
-                    <span className="hidden sm:block text-[10px] opacity-80">{t(s.desc)}</span>
-                  </button>
-                </li>
+                <button
+                  key={t_.id}
+                  type="button"
+                  onClick={() => setTab(t_.id)}
+                  aria-current={isActive ? "page" : undefined}
+                  aria-label={`${t(t_.label)} — ${t(t_.desc)}`}
+                  className={`flex-1 flex flex-col items-center gap-1 py-3 px-2 text-xs font-medium transition-colors border-r last:border-r-0 border-border focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none
+                    ${isActive
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-background text-muted-foreground hover:bg-muted"
+                    }`}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <Icon className="h-4 w-4" aria-hidden="true" />
+                    <span>{t(t_.label)}</span>
+                  </div>
+                  <span className="text-[10px] opacity-80">{t(t_.desc)}</span>
+                </button>
               );
             })}
-          </ol>
+          </div>
         </nav>
 
-        {/* Stage content */}
+        {/* Tab content */}
         <main id="copilot-main" ref={mainRef} tabIndex={-1} className="outline-none">
-          {stage === 1 && (
-            <Stage1Profile
-              sessionId={sessionId}
-              onConfirmed={handleProfileConfirmed}
-            />
+          {tab === "apply" && (
+            <div className="space-y-10">
+              {/* Profile — upload & extract */}
+              <section aria-labelledby="section-profile">
+                <div className="flex items-center gap-2 mb-4">
+                  <FileSearch className="h-4 w-4 text-primary" aria-hidden="true" />
+                  <h2 id="section-profile" className="text-xs font-semibold uppercase tracking-wider text-primary">
+                    {t("Profile")}
+                  </h2>
+                  <div className="flex-1 h-px bg-border" />
+                </div>
+                <Stage1Profile
+                  sessionId={sessionId}
+                  onConfirmed={handleProfileConfirmed}
+                />
+              </section>
+
+              {/* Divider */}
+              <div className="border-t border-border" />
+
+              {/* Prepare — checklist & packet */}
+              <section aria-labelledby="section-prepare">
+                <div className="flex items-center gap-2 mb-4">
+                  <ClipboardList className="h-4 w-4 text-primary" aria-hidden="true" />
+                  <h2 id="section-prepare" className="text-xs font-semibold uppercase tracking-wider text-primary">
+                    {t("Prepare")}
+                  </h2>
+                  <div className="flex-1 h-px bg-border" />
+                </div>
+                <Stage3Prepare
+                  sessionId={sessionId}
+                  onSessionDeleted={handleSessionDeleted}
+                />
+              </section>
+            </div>
           )}
-          {stage === 2 && (
+
+          {tab === "understand" && (
             <Stage2Understand sessionId={sessionId} />
           )}
-          {stage === 3 && (
-            <Stage3Prepare
-              sessionId={sessionId}
-              onSessionDeleted={handleSessionDeleted}
-            />
-          )}
         </main>
-
-        {/* Stage nav footer */}
-        {(stage === 2 || stage === 3) && (
-          <div className="flex justify-between pt-2 border-t border-border">
-            <button
-              type="button"
-              onClick={() => setStage((s) => (s - 1) as Stage)}
-              className="text-sm text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary rounded px-2 py-1 focus-visible:outline-none"
-              aria-label={`${t("Go back to Stage")} ${stage - 1}`}
-            >
-              ← {t("Back")}
-            </button>
-            {stage < 3 && (
-              <button
-                type="button"
-                onClick={() => setStage((s) => (s + 1) as Stage)}
-                className="text-sm font-medium text-primary hover:underline focus-visible:ring-2 focus-visible:ring-primary rounded px-2 py-1 focus-visible:outline-none"
-                aria-label={`${t("Continue to Stage")} ${stage + 1}`}
-              >
-                {t("Continue")} →
-              </button>
-            )}
-          </div>
-        )}
 
         {/* Help contacts */}
         <aside aria-label={t("Housing assistance contacts")} className="rounded-md border border-border bg-muted/20 p-4 text-sm">

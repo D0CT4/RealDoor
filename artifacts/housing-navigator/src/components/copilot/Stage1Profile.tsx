@@ -291,7 +291,7 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
       {/* Heading */}
       <div>
         <h2 className="text-xl font-semibold text-primary mb-1" id="stage1-heading">
-          {t("Stage 1 — Profile: Document Extraction")}
+          {t("Document Extraction")}
         </h2>
         <p className="text-sm text-muted-foreground leading-relaxed">
           {t("Upload a")} <strong>{t("synthetic")}</strong>{" "}

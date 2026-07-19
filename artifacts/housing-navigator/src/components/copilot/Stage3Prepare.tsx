@@ -222,7 +222,7 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold text-primary mb-1" id="stage3-heading">
-          {t("Stage 3 — Prepare: Document Checklist & Packet")}
+          {t("Document Checklist & Packet")}
         </h2>
         <p className="text-sm text-muted-foreground">
           {t("Mark each required document as Present, Missing, or Expired. Then preview and download your application-readiness packet. Only you control what is downloaded — nothing is sent anywhere.")}

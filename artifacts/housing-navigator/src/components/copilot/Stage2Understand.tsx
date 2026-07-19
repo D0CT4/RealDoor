@@ -241,7 +241,7 @@ export default function Stage2Understand({ sessionId }: Props) {
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold text-primary mb-1" id="stage2-heading">
-          {t("Stage 2 — Understand: Rules & Calculations")}
+          {t("Rules & Calculations")}
         </h2>
         <p className="text-sm text-muted-foreground">
           {t("Ask questions about program rules and the FY 2026 frozen MTSP income limits (Boston-Cambridge-Quincy HMFA). Every answer cites the authoritative source and effective date. This tool explains rules — it does not determine eligibility.")}
