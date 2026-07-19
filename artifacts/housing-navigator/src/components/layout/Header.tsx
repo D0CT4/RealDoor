@@ -22,7 +22,7 @@ export function Header() {
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2 font-serif text-xl font-semibold text-primary">
           <Compass className="h-6 w-6 text-secondary" />
-          NIDO
+          RealDoor
         </Link>
         
         <nav className="hidden md:flex items-center gap-6">

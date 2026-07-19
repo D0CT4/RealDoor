@@ -131,8 +131,8 @@ const translations: Record<'en' | 'es', Record<string, string>> = {
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
-const LANG_STORAGE_KEY = 'nido-language';
-const txStorageKey = (lang: string) => `nido-tx-${lang}`;
+const LANG_STORAGE_KEY = 'realdoor-language';
+const txStorageKey = (lang: string) => `realdoor-tx-${lang}`;
 
 function loadCachedMap(lang: string): Record<string, string> {
   try {
