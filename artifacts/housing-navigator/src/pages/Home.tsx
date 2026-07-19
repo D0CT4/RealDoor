@@ -77,7 +77,7 @@ export default function Home() {
           <div className="flex-1 space-y-6 text-center md:text-left">
             <div className="inline-flex items-center rounded-full border border-primary-foreground/20 bg-primary-foreground/10 px-3 py-1 text-sm mb-2 backdrop-blur">
               <span className="flex h-2 w-2 rounded-full bg-success mr-2"></span>
-              {t("Multilingual Assistance Tool")}
+              {t("Housing Assistant Tool")}
             </div>
             <h1 className="text-4xl md:text-6xl font-serif font-bold leading-tight">
               {t("home.hero.title")}
