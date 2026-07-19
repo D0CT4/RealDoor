@@ -2,16 +2,19 @@ import { Link, useLocation } from "wouter";
 import { Compass, Menu, X } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { LanguageSelect } from "./LanguageSelect";
 
 export function Header() {
   const [location] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { t } = useLanguage();
 
   const links = [
-    { href: "/", label: "Home" },
-    { href: "/programs", label: "Programs" },
-    { href: "/listings", label: "Listings" },
-    { href: "/copilot", label: "Copilot" },
+    { href: "/", label: t("Home") },
+    { href: "/programs", label: t("Programs") },
+    { href: "/listings", label: t("Listings") },
+    { href: "/copilot", label: t("Copilot") },
   ];
 
   return (
@@ -35,6 +38,7 @@ export function Header() {
               {link.label}
             </Link>
           ))}
+          <LanguageSelect />
         </nav>
 
         <button 
@@ -62,6 +66,7 @@ export function Header() {
               {link.label}
             </Link>
           ))}
+          <LanguageSelect />
         </div>
       )}
     </header>

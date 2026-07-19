@@ -1,14 +1,56 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  ReactNode,
+} from 'react';
 
-type Language = 'en' | 'es';
-
-interface LanguageContextType {
-  language: Language;
-  setLanguage: (lang: Language) => void;
-  t: (key: string, params?: Record<string, string | number>) => string;
+// ── Supported languages (any language works — this list powers the picker) ──
+export interface LanguageOption {
+  code: string;
+  label: string;      // native name shown in the picker
+  english: string;    // English name sent to the translation service
+  rtl?: boolean;
 }
 
-const translations: Record<Language, Record<string, string>> = {
+export const LANGUAGES: LanguageOption[] = [
+  { code: 'en', label: 'English', english: 'English' },
+  { code: 'es', label: 'Español', english: 'Spanish' },
+  { code: 'zh', label: '中文', english: 'Chinese (Simplified)' },
+  { code: 'ru', label: 'Русский', english: 'Russian' },
+  { code: 'bn', label: 'বাংলা', english: 'Bengali' },
+  { code: 'ht', label: 'Kreyòl Ayisyen', english: 'Haitian Creole' },
+  { code: 'ko', label: '한국어', english: 'Korean' },
+  { code: 'ar', label: 'العربية', english: 'Arabic', rtl: true },
+  { code: 'fr', label: 'Français', english: 'French' },
+  { code: 'ur', label: 'اردو', english: 'Urdu', rtl: true },
+  { code: 'pl', label: 'Polski', english: 'Polish' },
+  { code: 'pt', label: 'Português', english: 'Portuguese' },
+  { code: 'hi', label: 'हिन्दी', english: 'Hindi' },
+  { code: 'vi', label: 'Tiếng Việt', english: 'Vietnamese' },
+  { code: 'tl', label: 'Tagalog', english: 'Tagalog' },
+  { code: 'el', label: 'Ελληνικά', english: 'Greek' },
+  { code: 'he', label: 'עברית', english: 'Hebrew', rtl: true },
+  { code: 'it', label: 'Italiano', english: 'Italian' },
+  { code: 'de', label: 'Deutsch', english: 'German' },
+  { code: 'ja', label: '日本語', english: 'Japanese' },
+];
+
+interface LanguageContextType {
+  language: string; // language code from LANGUAGES
+  setLanguage: (lang: string) => void;
+  t: (key: string, params?: Record<string, string | number>) => string;
+  isTranslating: boolean;
+}
+
+// ── Built-in dictionaries ────────────────────────────────────
+// `en` doubles as the source-text lookup for dynamic translation.
+// Keys not present in the dictionary are treated as literal English text,
+// so components can call t('Any English sentence') directly.
+const translations: Record<'en' | 'es', Record<string, string>> = {
   en: {
     'home.hero.title': 'Understand Your Rent Situation.',
     'home.hero.subtitle': 'Answer a few questions to see if your rent is considered a burden and discover housing assistance programs you might qualify for.',
@@ -84,26 +126,140 @@ const translations: Record<Language, Record<string, string>> = {
     'bedrooms.2': '2 Habitaciones',
     'bedrooms.3': '3 Habitaciones',
     'bedrooms.4': '4+ Habitaciones',
-  }
+  },
 };
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
-export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguage] = useState<Language>('en');
+const LANG_STORAGE_KEY = 'nido-language';
+const txStorageKey = (lang: string) => `nido-tx-${lang}`;
 
-  const t = (key: string, params?: Record<string, string | number>) => {
-    let text = translations[language][key] || key;
+function loadCachedMap(lang: string): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(txStorageKey(lang));
+    return raw ? (JSON.parse(raw) as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveCachedMap(lang: string, map: Record<string, string>): void {
+  try {
+    localStorage.setItem(txStorageKey(lang), JSON.stringify(map));
+  } catch {
+    // localStorage full or unavailable — dynamic map still works in memory.
+  }
+}
+
+export function LanguageProvider({ children }: { children: ReactNode }) {
+  const [language, setLanguageState] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem(LANG_STORAGE_KEY);
+      if (saved && LANGUAGES.some((l) => l.code === saved)) return saved;
+    } catch { /* ignore */ }
+    return 'en';
+  });
+  // Dynamic translations for the current language: englishSource → translated.
+  const [dynamicMap, setDynamicMap] = useState<Record<string, string>>(() =>
+    language === 'en' || language === 'es' ? {} : loadCachedMap(language)
+  );
+  const [isTranslating, setIsTranslating] = useState(false);
+
+  const pendingRef = useRef<Set<string>>(new Set());
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const languageRef = useRef(language);
+  languageRef.current = language;
+  const dynamicMapRef = useRef(dynamicMap);
+  dynamicMapRef.current = dynamicMap;
+
+  const setLanguage = useCallback((lang: string) => {
+    if (!LANGUAGES.some((l) => l.code === lang)) return;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    pendingRef.current.clear();
+    setLanguageState(lang);
+    setDynamicMap(lang === 'en' || lang === 'es' ? {} : loadCachedMap(lang));
+    try {
+      localStorage.setItem(LANG_STORAGE_KEY, lang);
+    } catch { /* ignore */ }
+  }, []);
+
+  // Keep <html lang dir> in sync (RTL support for Arabic/Urdu/Hebrew).
+  useEffect(() => {
+    const opt = LANGUAGES.find((l) => l.code === language);
+    document.documentElement.lang = language;
+    document.documentElement.dir = opt?.rtl ? 'rtl' : 'ltr';
+  }, [language]);
+
+  const flushQueue = useCallback(async () => {
+    const lang = languageRef.current;
+    if (lang === 'en') { pendingRef.current.clear(); return; }
+    const texts = Array.from(pendingRef.current).slice(0, 120);
+    if (texts.length === 0) return;
+    texts.forEach((t) => pendingRef.current.delete(t));
+    const opt = LANGUAGES.find((l) => l.code === lang);
+    setIsTranslating(true);
+    try {
+      const resp = await fetch('/api/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetLanguage: opt?.english ?? lang, texts }),
+      });
+      if (!resp.ok) throw new Error(`translate failed: ${resp.status}`);
+      const data = (await resp.json()) as { translations: Record<string, string> };
+      // Ignore stale responses if the user switched language mid-flight.
+      if (languageRef.current !== lang) return;
+      setDynamicMap((prev) => {
+        const merged = { ...prev, ...data.translations };
+        saveCachedMap(lang, merged);
+        return merged;
+      });
+    } catch (err) {
+      console.error('Translation request failed:', err);
+      // Leave texts untranslated (English fallback); they can retry on next render.
+    } finally {
+      setIsTranslating(false);
+      if (pendingRef.current.size > 0) {
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => void flushQueue(), 200);
+      }
+    }
+  }, []);
+
+  const enqueue = useCallback((text: string) => {
+    if (pendingRef.current.has(text)) return;
+    pendingRef.current.add(text);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => void flushQueue(), 200);
+  }, [flushQueue]);
+
+  const t = useCallback((key: string, params?: Record<string, string | number>) => {
+    // Resolve the English source: dictionary value if the key exists,
+    // otherwise the key itself is treated as literal English text.
+    const source = translations.en[key] ?? key;
+    let text: string;
+    if (language === 'en') {
+      text = source;
+    } else if (language === 'es' && translations.es[key] !== undefined) {
+      text = translations.es[key];
+    } else {
+      const dyn = dynamicMapRef.current[source];
+      if (dyn !== undefined) {
+        text = dyn;
+      } else {
+        enqueue(source);
+        text = source; // English fallback until the translation arrives
+      }
+    }
     if (params) {
       Object.entries(params).forEach(([k, v]) => {
         text = text.replace(`{${k}}`, String(v));
       });
     }
     return text;
-  };
+  }, [language, dynamicMap, enqueue]); // dynamicMap dependency re-renders consumers when translations arrive
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, t }}>
+    <LanguageContext.Provider value={{ language, setLanguage, t, isTranslating }}>
       {children}
     </LanguageContext.Provider>
   );

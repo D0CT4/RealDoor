@@ -3,6 +3,7 @@ import {
   AlertCircle, AlertTriangle, CheckCircle2, Download,
   FileDown, Loader2, Trash2, XCircle,
 } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface ChecklistItem {
   id: string;
@@ -42,6 +43,7 @@ const STATUS_META: Record<ItemStatus, { icon: React.ReactNode; label: string; co
 };
 
 export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
+  const { t } = useLanguage();
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [statuses, setStatuses] = useState<Record<string, ItemStatus>>({});
   const [loadingChecklist, setLoadingChecklist] = useState(true);
@@ -62,7 +64,7 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
         (data.items ?? []).forEach((item: ChecklistItem) => { init[item.id] = "missing"; });
         setStatuses(init);
       } catch {
-        setError("Failed to load document checklist.");
+        setError(t("Failed to load document checklist."));
       } finally {
         setLoadingChecklist(false);
       }
@@ -80,7 +82,7 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
   }
 
   async function generatePacket() {
-    if (!sessionId) { setError("No active session — please complete Stage 1 first."); return; }
+    if (!sessionId) { setError(t("No active session — please complete Stage 1 first.")); return; }
     setIsGenerating(true);
     setError(null);
     try {
@@ -90,10 +92,10 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
         body: JSON.stringify({ sessionId, itemStatuses: statuses }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error || "Packet generation failed."); return; }
+      if (!res.ok) { setError(data.error ? t(data.error) : t("Packet generation failed.")); return; }
       setPreviewJson(JSON.stringify(data.packet, null, 2));
     } catch {
-      setError("Network error — please try again.");
+      setError(t("Network error — please try again."));
     } finally {
       setIsGenerating(false);
     }
@@ -119,7 +121,7 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
       sessionStorage.removeItem("copilot_session_id");
       onSessionDeleted();
     } catch {
-      setError("Delete request failed — please try again.");
+      setError(t("Delete request failed — please try again."));
       setIsDeleting(false);
     }
   }
@@ -128,7 +130,7 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground py-8" aria-busy="true">
         <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-        Loading document checklist…
+        {t("Loading document checklist…")}
       </div>
     );
   }
@@ -137,10 +139,10 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold text-primary mb-1" id="stage3-heading">
-          Stage 3 — Prepare: Document Checklist &amp; Packet
+          {t("Stage 3 — Prepare: Document Checklist & Packet")}
         </h2>
         <p className="text-sm text-muted-foreground">
-          Mark each required document as <strong>Present</strong>, <strong>Missing</strong>, or <strong>Expired</strong>. Then preview and download your application-readiness packet. Only you control what is downloaded — nothing is sent anywhere.
+          {t("Mark each required document as Present, Missing, or Expired. Then preview and download your application-readiness packet. Only you control what is downloaded — nothing is sent anywhere.")}
         </p>
       </div>
 
@@ -150,13 +152,17 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
           {missingRequired.length > 0 && (
             <div className="flex items-center gap-2">
               <XCircle className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
-              <span><strong>{missingRequired.length} required document{missingRequired.length > 1 ? "s" : ""} missing</strong> — obtain before applying.</span>
+              <span><strong>{missingRequired.length > 1
+                ? t("{count} required documents missing", { count: missingRequired.length })
+                : t("{count} required document missing", { count: missingRequired.length })}</strong> — {t("obtain before applying.")}</span>
             </div>
           )}
           {expiredItems.length > 0 && (
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
-              <span><strong>{expiredItems.length} document{expiredItems.length > 1 ? "s" : ""} expired</strong> — obtain fresh copies.</span>
+              <span><strong>{expiredItems.length > 1
+                ? t("{count} documents expired", { count: expiredItems.length })
+                : t("{count} document expired", { count: expiredItems.length })}</strong> — {t("obtain fresh copies.")}</span>
             </div>
           )}
         </div>
@@ -165,13 +171,13 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
       {allClear && (
         <div role="status" aria-live="polite" className="rounded-md border border-green-200 bg-green-50 p-3 flex items-center gap-2 text-sm text-green-800">
           <CheckCircle2 className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
-          <span><strong>All required documents marked as present.</strong> You are ready to build your packet.</span>
+          <span><strong>{t("All required documents marked as present.")}</strong> {t("You are ready to build your packet.")}</span>
         </div>
       )}
 
       {/* Checklist */}
-      <section aria-label="Document checklist for Section 8 application">
-        <h3 className="text-sm font-semibold text-foreground mb-3">Required Documents — Section 8 HCV (NYCHA, 2026)</h3>
+      <section aria-label={t("Document checklist for Section 8 application")}>
+        <h3 className="text-sm font-semibold text-foreground mb-3">{t("Required Documents — Section 8 HCV (NYCHA, 2026)")}</h3>
         <div className="space-y-2">
           {checklist.map((item) => {
             const status = statuses[item.id] ?? "missing";
@@ -184,23 +190,23 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-medium text-foreground">{item.label}</span>
+                      <span className="text-sm font-medium text-foreground">{t(item.label)}</span>
                       {item.required
-                        ? <span className="text-xs px-1.5 py-0.5 rounded bg-red-100 text-red-700 border border-red-200">Required</span>
-                        : <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">Optional</span>}
+                        ? <span className="text-xs px-1.5 py-0.5 rounded bg-red-100 text-red-700 border border-red-200">{t("Required")}</span>
+                        : <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">{t("Optional")}</span>}
                       {item.validityMonths && (
-                        <span className="text-xs text-muted-foreground">Valid {item.validityMonths} months</span>
+                        <span className="text-xs text-muted-foreground">{t("Valid {months} months", { months: item.validityMonths })}</span>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">{item.description}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{t(item.description)}</p>
                     <p className="text-xs text-muted-foreground mt-0.5 italic">
-                      Examples: {item.examples.join(" · ")}
+                      {t("Examples:")} {item.examples.map((ex) => t(ex)).join(" · ")}
                     </p>
                   </div>
 
                   {/* Status controls */}
                   <fieldset className="flex gap-1 flex-shrink-0">
-                    <legend className="sr-only">Status of {item.label}</legend>
+                    <legend className="sr-only">{t("Status of {label}", { label: item.label })}</legend>
                     {(["present", "missing", "expired"] as ItemStatus[]).map((s) => {
                       const sm = STATUS_META[s];
                       return (
@@ -216,7 +222,7 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
                           }`}
                         >
                           {sm.icon}
-                          {sm.label}
+                          {t(sm.label)}
                         </button>
                       );
                     })}
@@ -237,9 +243,9 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
 
       {/* Packet actions */}
       <div className="rounded-md border border-border bg-muted/30 p-4 space-y-4">
-        <h3 className="text-sm font-semibold text-foreground">Application-Readiness Packet</h3>
+        <h3 className="text-sm font-semibold text-foreground">{t("Application-Readiness Packet")}</h3>
         <p className="text-xs text-muted-foreground">
-          The packet includes your confirmed profile fields, checklist summary, and consent log. It is a preparation aid only — not an application. It is never transmitted anywhere.
+          {t("The packet includes your confirmed profile fields, checklist summary, and consent log. It is a preparation aid only — not an application. It is never transmitted anywhere.")}
         </p>
 
         <div className="flex flex-wrap gap-2">
@@ -253,7 +259,7 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
             {isGenerating
               ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
               : <FileDown className="h-4 w-4" aria-hidden="true" />}
-            {isGenerating ? "Building packet…" : "Build Packet"}
+            {isGenerating ? t("Building packet…") : t("Build Packet")}
           </button>
 
           {previewJson && (
@@ -261,10 +267,10 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
               type="button"
               onClick={downloadPacket}
               className="inline-flex items-center gap-2 rounded-md bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-800 focus-visible:ring-2 focus-visible:ring-green-700 focus-visible:outline-none"
-              aria-label="Download packet as a JSON file"
+              aria-label={t("Download packet as a JSON file")}
             >
               <Download className="h-4 w-4" aria-hidden="true" />
-              Download Packet (.json)
+              {t("Download Packet (.json)")}
             </button>
           )}
         </div>
@@ -272,11 +278,11 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
         {/* Packet preview */}
         {previewJson && (
           <div>
-            <h4 className="text-xs font-semibold text-foreground mb-2 uppercase tracking-wide">Packet Preview</h4>
+            <h4 className="text-xs font-semibold text-foreground mb-2 uppercase tracking-wide">{t("Packet Preview")}</h4>
             <div
               className="rounded-md border border-border bg-background overflow-auto max-h-80 p-3"
               role="region"
-              aria-label="Packet JSON preview"
+              aria-label={t("Packet JSON preview")}
               tabIndex={0}
             >
               <pre className="text-xs font-mono text-foreground whitespace-pre-wrap break-words">{previewJson}</pre>
@@ -287,9 +293,9 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
 
       {/* Session delete */}
       <div className="rounded-md border border-red-200 bg-red-50 p-4">
-        <h3 className="text-sm font-semibold text-red-800 mb-1">Delete Session &amp; All Data</h3>
+        <h3 className="text-sm font-semibold text-red-800 mb-1">{t("Delete Session & All Data")}</h3>
         <p className="text-xs text-red-700 mb-3">
-          This permanently deletes all extracted fields and consent logs from the server. This action cannot be undone. Your downloaded packet (if any) is not affected.
+          {t("This permanently deletes all extracted fields and consent logs from the server. This action cannot be undone. Your downloaded packet (if any) is not affected.")}
         </p>
 
         {!showDeleteConfirm ? (
@@ -299,11 +305,11 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
             className="inline-flex items-center gap-2 rounded-md border border-red-300 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100 focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:outline-none"
           >
             <Trash2 className="h-4 w-4" aria-hidden="true" />
-            Delete Session
+            {t("Delete Session")}
           </button>
         ) : (
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm text-red-800 font-medium">Are you sure?</span>
+            <span className="text-sm text-red-800 font-medium">{t("Are you sure?")}</span>
             <button
               type="button"
               onClick={deleteSession}
@@ -312,14 +318,14 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
               aria-busy={isDeleting}
             >
               {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Trash2 className="h-4 w-4" aria-hidden="true" />}
-              {isDeleting ? "Deleting…" : "Yes, delete everything"}
+              {isDeleting ? t("Deleting…") : t("Yes, delete everything")}
             </button>
             <button
               type="button"
               onClick={() => setShowDeleteConfirm(false)}
               className="text-sm text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary rounded"
             >
-              Cancel
+              {t("Cancel")}
             </button>
           </div>
         )}

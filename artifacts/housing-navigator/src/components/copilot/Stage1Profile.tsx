@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { AlertCircle, CheckCircle2, Edit2, FileText, Loader2, ShieldAlert, ShieldCheck } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export interface ExtractedField {
   key: string;
@@ -29,6 +30,7 @@ Gross Pay This Period: $2,150.00
 YTD Gross: $25,800.00`;
 
 export default function Stage1Profile({ sessionId: existingSession, onConfirmed }: Props) {
+  const { t } = useLanguage();
   const [docText, setDocText] = useState("");
   const [isExtracting, setIsExtracting] = useState(false);
   const [fields, setFields] = useState<ExtractedField[]>([]);
@@ -61,7 +63,7 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
         body: JSON.stringify({ documentText: docText, sessionId: localSessionId }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error || "Extraction failed."); return; }
+      if (!res.ok) { setError(data.error ? t(data.error) : t("Extraction failed.")); return; }
       setLocalSessionId(data.sessionId);
       setFields(data.fields);
       setWarningDetected(!!data.warningDetected);
@@ -70,7 +72,7 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
       setEdits(initEdits);
       setExtractDone(true);
     } catch {
-      setError("Network error — please check your connection and try again.");
+      setError(t("Network error — please check your connection and try again."));
     } finally {
       setIsExtracting(false);
     }
@@ -88,12 +90,12 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
         body: JSON.stringify({ sessionId: localSessionId, confirmedFields, consent: true }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error || "Confirmation failed."); return; }
+      if (!res.ok) { setError(data.error ? t(data.error) : t("Confirmation failed.")); return; }
       sessionStorage.setItem("copilot_session_id", localSessionId);
       const confirmedData = fields.map((f) => ({ ...f, editedValue: edits[f.key] ?? f.value ?? "", confirmed: true }));
       onConfirmed(localSessionId, confirmedData);
     } catch {
-      setError("Network error — please try again.");
+      setError(t("Network error — please try again."));
     } finally {
       setIsConfirming(false);
     }
@@ -103,10 +105,10 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold text-primary mb-1" id="stage1-heading">
-          Stage 1 — Profile: Document Extraction
+          {t("Stage 1 — Profile: Document Extraction")}
         </h2>
         <p className="text-sm text-muted-foreground">
-          Paste a <strong>synthetic</strong> pay stub or benefit letter below. The tool extracts only 5 allowlisted fields — no SSNs, addresses, or account numbers. Raw text is never stored.
+          {t("Paste a")} <strong>{t("synthetic")}</strong> {t("pay stub or benefit letter below. The tool extracts only 5 allowlisted fields — no SSNs, addresses, or account numbers. Raw text is never stored.")}
         </p>
       </div>
 
@@ -116,21 +118,21 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
           type="button"
           onClick={() => setDocText(SYNTHETIC_EXAMPLE)}
           className="text-xs underline text-secondary hover:text-primary focus-visible:ring-2 focus-visible:ring-primary rounded"
-          aria-label="Load a sample synthetic pay stub into the text area"
+          aria-label={t("Load a sample synthetic pay stub into the text area")}
         >
-          Load sample synthetic pay stub
+          {t("Load sample synthetic pay stub")}
         </button>
       </div>
 
       <div>
         <label htmlFor="doc-text" className="block text-sm font-medium text-foreground mb-1">
-          Document Text <span aria-hidden="true">*</span>
+          {t("Document Text")} <span aria-hidden="true">*</span>
         </label>
         <textarea
           id="doc-text"
           rows={8}
           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono resize-y focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          placeholder="Paste your synthetic pay stub, benefit letter, or other income document here…"
+          placeholder={t("Paste your synthetic pay stub, benefit letter, or other income document here…")}
           value={docText}
           onChange={(e) => setDocText(e.target.value)}
           aria-describedby="doc-text-hint"
@@ -138,7 +140,7 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
           disabled={isExtracting}
         />
         <p id="doc-text-hint" className="text-xs text-muted-foreground mt-1">
-          Use only synthetic (test) documents. Do not paste documents containing real personal information.
+          {t("Use only synthetic (test) documents. Do not paste documents containing real personal information.")}
         </p>
       </div>
 
@@ -150,14 +152,14 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
         aria-busy={isExtracting}
       >
         {isExtracting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <FileText className="h-4 w-4" aria-hidden="true" />}
-        {isExtracting ? "Extracting fields…" : "Extract Fields"}
+        {isExtracting ? t("Extracting fields…") : t("Extract Fields")}
       </button>
 
       {/* Injection warning */}
       {warningDetected && (
         <div role="alert" className="flex items-start gap-2 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">
           <ShieldAlert className="h-5 w-5 flex-shrink-0 mt-0.5" aria-hidden="true" />
-          <span><strong>Security notice:</strong> The document contained text that appeared to be attempting to manipulate the extraction system. Those instructions were ignored. Please review the extracted fields carefully.</span>
+          <span><strong>{t("Security notice:")}</strong> {t("The document contained text that appeared to be attempting to manipulate the extraction system. Those instructions were ignored. Please review the extracted fields carefully.")}</span>
         </div>
       )}
 
@@ -165,7 +167,7 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
       {extractDone && fields.length > 0 && (
         <section aria-labelledby="fields-heading">
           <h3 id="fields-heading" className="text-base font-semibold text-foreground mb-3">
-            Extracted Fields — Review &amp; Correct
+            {t("Extracted Fields — Review & Correct")}
           </h3>
           <div
             ref={firstFieldRef}
@@ -183,20 +185,20 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
                 >
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-medium text-foreground">{field.label}</span>
-                      <span className={`text-xs px-1.5 py-0.5 rounded border font-medium ${meta.bg} ${meta.color}`} aria-label={meta.label}>
-                        {meta.label}
+                      <span className="text-sm font-medium text-foreground">{t(field.label)}</span>
+                      <span className={`text-xs px-1.5 py-0.5 rounded border font-medium ${meta.bg} ${meta.color}`} aria-label={t(meta.label)}>
+                        {t(meta.label)}
                       </span>
                     </div>
                     <button
                       type="button"
                       onClick={() => setEditingKey(isEditing ? null : field.key)}
                       className="text-xs flex items-center gap-1 text-primary hover:underline focus-visible:ring-2 focus-visible:ring-primary rounded"
-                      aria-label={isEditing ? `Stop editing ${field.label}` : `Edit ${field.label}`}
+                      aria-label={isEditing ? `${t("Stop editing")} ${t(field.label)}` : `${t("Edit")} ${t(field.label)}`}
                       aria-pressed={isEditing}
                     >
                       <Edit2 className="h-3 w-3" aria-hidden="true" />
-                      {isEditing ? "Done" : "Edit"}
+                      {isEditing ? t("Done") : t("Edit")}
                     </button>
                   </div>
 
@@ -206,18 +208,18 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
                       className="mt-2 w-full rounded border border-input bg-background px-2 py-1 text-sm focus-visible:ring-2 focus-visible:ring-primary outline-none"
                       value={edits[field.key] ?? ""}
                       onChange={(e) => setEdits((prev) => ({ ...prev, [field.key]: e.target.value }))}
-                      aria-label={`Corrected value for ${field.label}`}
+                      aria-label={`${t("Corrected value for")} ${t(field.label)}`}
                       autoFocus
                     />
                   ) : (
                     <p className="mt-1 text-sm font-mono text-foreground">
-                      {edits[field.key] || <em className="text-muted-foreground">Not found</em>}
+                      {edits[field.key] || <em className="text-muted-foreground">{t("Not found")}</em>}
                     </p>
                   )}
 
                   {field.sourceSnippet && !isEditing && (
                     <p className="mt-1.5 text-xs text-muted-foreground italic">
-                      Evidence: &ldquo;{field.sourceSnippet}&rdquo;
+                      {t("Evidence:")} &ldquo;{field.sourceSnippet}&rdquo;
                     </p>
                   )}
                 </div>
@@ -237,7 +239,7 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
                 id="consent-checkbox"
               />
               <span className="text-sm text-foreground" id="consent-label">
-                <strong>I confirm</strong> that I have reviewed and corrected these fields. I understand that only the fields shown above will be stored — the original document text will not be retained. This information will only be used to prepare my application-readiness packet.
+                <strong>{t("I confirm")}</strong> {t("that I have reviewed and corrected these fields. I understand that only the fields shown above will be stored — the original document text will not be retained. This information will only be used to prepare my application-readiness packet.")}
               </span>
             </label>
 
@@ -259,7 +261,7 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
               {isConfirming
                 ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                 : <CheckCircle2 className="h-4 w-4" aria-hidden="true" />}
-              {isConfirming ? "Confirming…" : "Confirm Profile & Continue"}
+              {isConfirming ? t("Confirming…") : t("Confirm Profile & Continue")}
             </button>
           </div>
         </section>

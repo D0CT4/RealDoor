@@ -1,4 +1,5 @@
 import { useLanguage } from "@/contexts/LanguageContext";
+import { LanguageSelect } from "@/components/layout/LanguageSelect";
 import { useState, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -12,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { Link } from "wouter";
 
 export default function Home() {
-  const { language, setLanguage, t } = useLanguage();
+  const { t } = useLanguage();
   
   const [formData, setFormData] = useState({
     monthlyIncome: "",
@@ -76,7 +77,7 @@ export default function Home() {
           <div className="flex-1 space-y-6 text-center md:text-left">
             <div className="inline-flex items-center rounded-full border border-primary-foreground/20 bg-primary-foreground/10 px-3 py-1 text-sm mb-2 backdrop-blur">
               <span className="flex h-2 w-2 rounded-full bg-success mr-2"></span>
-              Bilingual Assistance Tool
+              {t("Multilingual Assistance Tool")}
             </div>
             <h1 className="text-4xl md:text-6xl font-serif font-bold leading-tight">
               {t("home.hero.title")}
@@ -87,20 +88,7 @@ export default function Home() {
             
             <div className="pt-4 flex items-center justify-center md:justify-start gap-4">
               <span className="text-sm font-medium">Language / Idioma:</span>
-              <div className="bg-primary-foreground/10 p-1 rounded-lg inline-flex">
-                <button 
-                  onClick={() => setLanguage('en')}
-                  className={cn("px-4 py-1.5 rounded-md text-sm font-medium transition-colors", language === 'en' ? "bg-white text-primary" : "text-white hover:bg-white/10")}
-                >
-                  English
-                </button>
-                <button 
-                  onClick={() => setLanguage('es')}
-                  className={cn("px-4 py-1.5 rounded-md text-sm font-medium transition-colors", language === 'es' ? "bg-white text-primary" : "text-white hover:bg-white/10")}
-                >
-                  Español
-                </button>
-              </div>
+              <LanguageSelect onDark />
             </div>
           </div>
           
@@ -347,7 +335,7 @@ export default function Home() {
         ) : (
           <div className="max-w-3xl mx-auto text-center py-20 opacity-50">
             <HomeIcon className="h-24 w-24 mx-auto text-muted-foreground mb-6 opacity-20" />
-            <h2 className="text-2xl font-serif text-muted-foreground">Fill out the form above to see your customized rent analysis and eligible programs.</h2>
+            <h2 className="text-2xl font-serif text-muted-foreground">{t("Fill out the form above to see your customized rent analysis and eligible programs.")}</h2>
           </div>
         )}
       </div>
