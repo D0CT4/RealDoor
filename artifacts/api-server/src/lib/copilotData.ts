@@ -442,6 +442,45 @@ export const SECTION8_CHECKLIST_2026: ChecklistItem[] = [
   },
 ];
 
+// ── Document-type → Checklist-ID mapping (Step 1) ────────────
+// Maps extracted `documentType` values from the RAG extractor to their
+// corresponding checklist item IDs in SECTION8_CHECKLIST_2026.
+export const DOCTYPE_TO_CHECKLIST_ID: Record<string, string> = {
+  pay_stub:            "income_pay_stubs",
+  employment_letter:   "income_pay_stubs",
+  gig_statement:       "income_pay_stubs",
+  tax_form:            "tax_return",
+  bank_statement:      "bank_statements",
+  photo_id:            "photo_id",
+  birth_certificate:   "birth_certificate",
+  social_security_card:"social_security",
+  immigration_document:"immigration_status",
+  benefit_letter:      "benefit_letter",
+  application_summary: "income_pay_stubs", // closest proxy
+};
+
+/**
+ * Pure freshness helper (Step 3).
+ * Returns "present" | "expired" | "missing" for a single document.
+ *
+ * @param documentDate  ISO date string extracted from the document (may be null/unparseable)
+ * @param validityMonths  checklist item validity window (null means no expiry constraint)
+ * @param frozenDate    the frozen challenge reference date (FROZEN_CHALLENGE_DATE)
+ */
+export function inferDocStatus(
+  documentDate: string | null | undefined,
+  validityMonths: number | null | undefined,
+  frozenDate: string
+): "present" | "expired" | "missing" {
+  if (!documentDate) return "missing";
+  const docD = new Date(documentDate);
+  if (isNaN(docD.getTime())) return "missing";
+  if (validityMonths == null) return "present"; // no expiry constraint
+  const cutoff = new Date(frozenDate);
+  cutoff.setMonth(cutoff.getMonth() - validityMonths);
+  return docD >= cutoff ? "present" : "expired";
+}
+
 // ── Session Store (in-memory, ephemeral) ──────────────────────
 export interface ExtractedField {
   key: string;

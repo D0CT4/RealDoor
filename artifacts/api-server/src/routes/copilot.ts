@@ -20,6 +20,9 @@ import {
   compareToBoston60Pct,
   type ComparisonResult,
   type ReadinessStatus,
+  // Checklist auto-detection
+  DOCTYPE_TO_CHECKLIST_ID,
+  inferDocStatus,
   // Session
   getSession,
   createSession,
@@ -610,7 +613,43 @@ ${SECTION8_RULES_2026.map((r) => `[${r.key}] ${r.title}: ${r.ruleText.slice(0, 2
 });
 
 // ── GET /api/copilot/checklist ───────────────────────────────
-router.get("/copilot/checklist", (_req, res): void => {
+// Optional query param: ?sessionId=<id>
+// When provided, auto-detects document statuses from Stage 1 extraction results
+// and returns autoStatuses + autoSource for each matched checklist item.
+router.get("/copilot/checklist", (req, res): void => {
+  const sessionId = typeof req.query.sessionId === "string" ? req.query.sessionId : null;
+
+  // Auto-status inference from session documents
+  const autoStatuses: Record<string, "present" | "expired" | "missing"> = {};
+  const autoSource: Record<string, { documentName: string; documentType: string; documentDate: string | null }> = {};
+
+  if (sessionId) {
+    const session = getSession(sessionId);
+    if (session) {
+      for (const doc of session.documents) {
+        const typeField = doc.fields.find((f) => f.key === "documentType" && f.value);
+        if (!typeField?.value) continue;
+        const checklistId = DOCTYPE_TO_CHECKLIST_ID[typeField.value];
+        if (!checklistId) continue;
+        const checklistItem = SECTION8_CHECKLIST_2026.find((i) => i.id === checklistId);
+        if (!checklistItem) continue;
+        const dateField = doc.fields.find((f) => f.key === "documentDate" && f.value);
+        const docDate = dateField?.value ?? null;
+        const status = inferDocStatus(docDate, checklistItem.validityMonths, FROZEN_CHALLENGE_DATE);
+        // Only upgrade status: present > expired > missing
+        const current = autoStatuses[checklistId];
+        if (!current || status === "present" || (status === "expired" && current === "missing")) {
+          autoStatuses[checklistId] = status;
+          autoSource[checklistId] = {
+            documentName: doc.name,
+            documentType: typeField.value,
+            documentDate: docDate,
+          };
+        }
+      }
+    }
+  }
+
   res.json({
     program: "Section 8 / Housing Choice Voucher — NYCHA, NYC",
     ruleYear: 2026,
@@ -619,6 +658,8 @@ router.get("/copilot/checklist", (_req, res): void => {
     frozenChallengeDate: FROZEN_CHALLENGE_DATE,
     currencyDays: FROZEN_CHALLENGE_CURRENCY_DAYS,
     items: SECTION8_CHECKLIST_2026,
+    autoStatuses,
+    autoSource,
     citations: [
       {
         rule_id: "CH-READINESS-001",
@@ -631,10 +672,12 @@ router.get("/copilot/checklist", (_req, res): void => {
 
 // ── POST /api/copilot/packet ─────────────────────────────────
 router.post("/copilot/packet", async (req, res): Promise<void> => {
-  const { sessionId, itemStatuses, householdSize } = req.body as {
+  const { sessionId, itemStatuses, householdSize, detectionSources } = req.body as {
     sessionId?: string;
     itemStatuses?: Record<string, "present" | "missing" | "expired">;
     householdSize?: unknown;
+    // Optional: parallel map to itemStatuses, keyed by checklist ID
+    detectionSources?: Record<string, "auto" | "manual">;
   };
 
   if (!sessionId) {
@@ -753,19 +796,31 @@ router.post("/copilot/packet", async (req, res): Promise<void> => {
     note: "Cross-reference is informational only. A qualified housing counselor must verify all data.",
   };
 
+  const detectionSourceMap = detectionSources ?? {};
+
   const presentDocs = SECTION8_CHECKLIST_2026
     .filter((item) => statuses[item.id] === "present")
-    .map((item) => item.label);
+    .map((item) => ({
+      label: item.label,
+      required: item.required,
+      detectionSource: detectionSourceMap[item.id] ?? "manual",
+    }));
 
   const missingDocs = SECTION8_CHECKLIST_2026
     .filter((item) => statuses[item.id] === "missing" || statuses[item.id] === undefined)
-    .map((item) => ({ label: item.label, required: item.required }));
+    .map((item) => ({
+      label: item.label,
+      required: item.required,
+      detectionSource: detectionSourceMap[item.id] ?? "manual",
+    }));
 
   const expiredDocs = SECTION8_CHECKLIST_2026
     .filter((item) => statuses[item.id] === "expired")
     .map((item) => ({
       label: item.label,
+      required: item.required,
       note: item.validityMonths ? `Valid for ${item.validityMonths} months — obtain a fresh copy` : "Needs renewal",
+      detectionSource: detectionSourceMap[item.id] ?? "manual",
     }));
 
   // ── Automatic readiness assessment (CH-READINESS-001) ──────

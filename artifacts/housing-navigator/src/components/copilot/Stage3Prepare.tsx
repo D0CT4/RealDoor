@@ -20,14 +20,22 @@ interface CrossRef {
   documentDateStatus: { documentName: string; documentDate?: string; status: string }[];
   documentTypesCovered: { documentName: string; type: string }[];
 }
+interface ChecklistEntry { label: string; required: boolean; detectionSource?: "auto" | "manual"; }
 interface PacketData {
   renterProfile: ProfileField[];
   incomeAssessment: { annualizedIncome: number | null; householdSize: number | null; comparison: string; frozen_60_percent_threshold: number | null };
   readinessAssessment: { status: string; reasons: string[] };
-  documentChecklist: { presentDocuments: string[]; missingDocuments: { label: string; required: boolean }[]; expiredDocuments: { label: string; note: string }[] };
+  documentChecklist: {
+    presentDocuments: ChecklistEntry[];
+    missingDocuments: ChecklistEntry[];
+    expiredDocuments: (ChecklistEntry & { note: string })[];
+  };
   extractedDocuments: ExtractedDoc[];
   crossReference: CrossRef;
 }
+
+// Auto-source info for a checklist item detected from Stage 1 extraction
+interface AutoSourceEntry { documentName: string; documentType: string; documentDate: string | null; }
 
 // ── Confidence pill ───────────────────────────────────────────
 function ConfBadge({ c }: { c: string }) {
@@ -80,6 +88,10 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
   const { t } = useLanguage();
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [statuses, setStatuses] = useState<Record<string, ItemStatus>>({});
+  // detectionSources: "auto" if pre-filled from Stage 1 extraction, "manual" if user toggled
+  const [detectionSources, setDetectionSources] = useState<Record<string, "auto" | "manual">>({});
+  // autoSource: which document triggered auto-detection for each checklist item
+  const [autoSource, setAutoSource] = useState<Record<string, AutoSourceEntry>>({});
   const [householdSize, setHouseholdSize] = useState<string>("");
   const [loadingChecklist, setLoadingChecklist] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -95,13 +107,33 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
   useEffect(() => {
     async function loadChecklist() {
       try {
-        const res = await fetch("/api/copilot/checklist");
+        // Pass sessionId so the endpoint can infer auto-statuses from Stage 1 extraction
+        const url = sessionId
+          ? `/api/copilot/checklist?sessionId=${encodeURIComponent(sessionId)}`
+          : "/api/copilot/checklist";
+        const res = await fetch(url);
         const data = await res.json();
         setChecklist(data.items ?? []);
-        // Default all items to "missing"
+
+        // Start all items as "missing"
         const init: Record<string, ItemStatus> = {};
         (data.items ?? []).forEach((item: ChecklistItem) => { init[item.id] = "missing"; });
+
+        // Merge auto-detected statuses from Stage 1 extraction
+        const autoStatuses: Record<string, "present" | "expired" | "missing"> = data.autoStatuses ?? {};
+        const autoSrc: Record<string, AutoSourceEntry> = data.autoSource ?? {};
+        const initSources: Record<string, "auto" | "manual"> = {};
+
+        for (const [id, status] of Object.entries(autoStatuses)) {
+          if (status === "present" || status === "expired") {
+            init[id] = status;
+            initSources[id] = "auto";
+          }
+        }
+
         setStatuses(init);
+        setDetectionSources(initSources);
+        setAutoSource(autoSrc);
       } catch {
         setError(t("Failed to load document checklist."));
       } finally {
@@ -109,7 +141,8 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
       }
     }
     loadChecklist();
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
 
   const missingRequired = checklist.filter((i) => i.required && statuses[i.id] !== "present");
   const expiredItems = checklist.filter((i) => statuses[i.id] === "expired");
@@ -117,6 +150,8 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
 
   function setStatus(id: string, status: ItemStatus) {
     setStatuses((prev) => ({ ...prev, [id]: status }));
+    // Manual toggle always overrides auto-detection
+    setDetectionSources((prev) => ({ ...prev, [id]: "manual" }));
     setPreviewJson(null);
     setPacketData(null);
   }
@@ -134,7 +169,7 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
       const res = await fetch("/api/copilot/packet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, itemStatuses: statuses, householdSize: hs }),
+        body: JSON.stringify({ sessionId, itemStatuses: statuses, householdSize: hs, detectionSources }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error ? t(data.error) : t("Packet generation failed.")); return; }
@@ -230,6 +265,8 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
           {checklist.map((item) => {
             const status = statuses[item.id] ?? "missing";
             const meta = STATUS_META[status];
+            const isAuto = detectionSources[item.id] === "auto";
+            const src = autoSource[item.id];
             return (
               <div
                 key={item.id}
@@ -250,6 +287,23 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
                     <p className="text-xs text-muted-foreground mt-0.5 italic">
                       {t("Examples:")} {item.examples.map((ex) => t(ex)).join(" · ")}
                     </p>
+                    {/* Auto-detected / Manually-set badge */}
+                    {isAuto && src ? (
+                      <p className="text-[10px] mt-1 text-primary/80 font-medium flex items-center gap-1">
+                        <span aria-hidden="true">✦</span>
+                        {t("Auto-detected from")}{" "}
+                        <span className="font-semibold">{src.documentName}</span>
+                        {src.documentDate && (
+                          <span className="text-muted-foreground font-normal">
+                            {" "}({src.documentDate})
+                          </span>
+                        )}
+                      </p>
+                    ) : detectionSources[item.id] === "manual" && (status === "present" || status === "expired") ? (
+                      <p className="text-[10px] mt-1 text-muted-foreground font-medium">
+                        {t("Manually set")}
+                      </p>
+                    ) : null}
                   </div>
 
                   {/* Status controls */}
