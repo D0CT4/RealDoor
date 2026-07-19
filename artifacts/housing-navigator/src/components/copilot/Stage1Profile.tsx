@@ -11,8 +11,6 @@ import {
   ImageIcon,
   FileImage,
   X,
-  ChevronDown,
-  ChevronUp,
   Sparkles,
 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -147,9 +145,7 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
   // Mode + inputs
   const [inputMode, setInputMode] = useState<InputMode>("upload");
   const [files, setFiles] = useState<File[]>([]);
-  const [docText, setDocText] = useState("");
   const [isDragging, setIsDragging] = useState(false);
-  const [showPaste, setShowPaste] = useState(false);
   // Per-file extraction progress when multiple files are queued
   const [extractProgress, setExtractProgress] = useState<{ done: number; total: number } | null>(null);
 
@@ -232,7 +228,6 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.length) {
       addFiles(e.target.files);
-      setDocText("");
     }
     e.target.value = "";
   };
@@ -240,8 +235,7 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
   // ── Extract ──────────────────────────────────────────────────
   async function handleExtract() {
     const hasFiles = files.length > 0;
-    const hasText  = docText.trim().length > 0;
-    if (!hasFiles && !hasText) return;
+    if (!hasFiles) return;
     setError(null);
     setIsExtracting(true);
     setExtractDone(false);
@@ -288,21 +282,6 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
 
           setExtractProgress({ done: i + 1, total: files.length });
         }
-      } else {
-        // Text-paste path
-        const res = await fetch("/api/copilot/rag-extract", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ documentText: docText, sessionId: lastSessionId }),
-        });
-        const data = await res.json();
-        if (!res.ok) { setError(data.error ? t(data.error) : t("Extraction failed.")); return; }
-
-        lastSessionId  = data.sessionId;
-        anyWarning     = !!data.warningDetected;
-        anyRag         = !!data.ragUsed;
-        lastSourceType = data.sourceType ?? "text";
-        (data.fields as ExtractedField[]).forEach((field) => { mergedFields[field.key] = field; });
       }
 
       const finalFields = Object.values(mergedFields);
@@ -352,7 +331,7 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
     }
   }
 
-  const hasInput = files.length > 0 || docText.trim().length > 0;
+  const hasInput = files.length > 0;
 
   return (
     <div className="space-y-6">
@@ -374,17 +353,6 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
         {t("RAG-powered extraction · OpenAI Agent · 7 allowlisted fields only")}
       </div>
 
-      {/* Sample doc button */}
-      <div>
-        <button
-          type="button"
-          onClick={() => { setDocText(SYNTHETIC_EXAMPLE); setFiles([]); setShowPaste(true); setExtractDone(false); setFields([]); }}
-          className="text-xs underline text-secondary hover:text-primary focus-visible:ring-2 focus-visible:ring-primary rounded"
-          aria-label={t("Load a sample synthetic pay stub into the text area")}
-        >
-          {t("Load sample synthetic pay stub")}
-        </button>
-      </div>
 
       {/* ── Drop zone ─────────────────────────────────────────── */}
       <div>
@@ -513,54 +481,6 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
         )}
       </div>
 
-      {/* ── OR paste text ─────────────────────────────────────── */}
-      <div className="border rounded-lg overflow-hidden">
-        <button
-          type="button"
-          onClick={() => setShowPaste((v) => !v)}
-          className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/40 transition-colors focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
-          aria-expanded={showPaste}
-          aria-controls="paste-area"
-        >
-          <span className="flex items-center gap-2">
-            <FileText className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-            {t("Or paste document text")}
-            {docText.trim() && (
-              <span className="ml-1 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">
-                {t("text added")}
-              </span>
-            )}
-          </span>
-          {showPaste
-            ? <ChevronUp className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-            : <ChevronDown className="h-4 w-4 text-muted-foreground" aria-hidden="true" />}
-        </button>
-
-        {showPaste && (
-          <div id="paste-area" className="px-4 pb-4 pt-1 border-t border-border bg-muted/10">
-            <label htmlFor="doc-text" className="block text-xs font-medium text-muted-foreground mb-1.5 mt-2">
-              {t("Paste text here")} {files.length > 0 && <span className="text-amber-600">({t("will be used instead of uploaded files")})</span>}
-            </label>
-            <textarea
-              id="doc-text"
-              rows={7}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono resize-y focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              placeholder={t("Paste your synthetic pay stub, benefit letter, or other income document here…")}
-              value={docText}
-              onChange={(e) => {
-                setDocText(e.target.value);
-                setExtractDone(false);
-                setFields([]);
-              }}
-              aria-describedby="doc-text-hint"
-              disabled={isExtracting}
-            />
-            <p id="doc-text-hint" className="text-xs text-muted-foreground mt-1">
-              {t("Use only synthetic (test) documents. Do not paste real personal information.")}
-            </p>
-          </div>
-        )}
-      </div>
 
       {/* ── Extract button ────────────────────────────────────── */}
       <button
