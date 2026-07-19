@@ -1,4 +1,6 @@
-# Housing Navigator NYC
+# NIDO
+
+The project/brand name is **NIDO** (user-chosen). Artifact dir remains `artifacts/housing-navigator`.
 
 Bilingual (EN/ES) housing assistance tool for NYC renters: rent-burden calculator, assistance program guide, affordable listings, and the "RealDoor" Section 8 application-readiness copilot.
 
