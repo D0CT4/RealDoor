@@ -46,6 +46,7 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
   const { t } = useLanguage();
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [statuses, setStatuses] = useState<Record<string, ItemStatus>>({});
+  const [householdSize, setHouseholdSize] = useState<string>("");
   const [loadingChecklist, setLoadingChecklist] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -90,10 +91,11 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
     setReadinessStatus(null);
     setReviewReasons([]);
     try {
+      const hs = householdSize ? parseInt(householdSize, 10) : undefined;
       const res = await fetch("/api/copilot/packet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, itemStatuses: statuses }),
+        body: JSON.stringify({ sessionId, itemStatuses: statuses, householdSize: hs }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error ? t(data.error) : t("Packet generation failed.")); return; }
@@ -253,6 +255,25 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
         <p className="text-xs text-muted-foreground">
           {t("The packet includes your confirmed profile fields, checklist summary, and consent log. It is a preparation aid only — not an application. It is never transmitted anywhere.")}
         </p>
+
+        {/* Household size — needed to compare income against the MTSP threshold */}
+        <div className="flex items-end gap-3 flex-wrap">
+          <div>
+            <label htmlFor="hs-packet" className="block text-xs font-medium text-foreground mb-1">
+              {t("Household Size")} <span className="text-muted-foreground font-normal">{t("(1–8, for income threshold comparison)")}</span>
+            </label>
+            <input
+              id="hs-packet"
+              type="number"
+              min={1}
+              max={8}
+              value={householdSize}
+              onChange={(e) => { setHouseholdSize(e.target.value); setPreviewJson(null); }}
+              className="w-20 rounded border border-input bg-background px-2 py-1.5 text-sm focus-visible:ring-2 focus-visible:ring-primary outline-none"
+              aria-label={t("Household size for income limit comparison")}
+            />
+          </div>
+        </div>
 
         <div className="flex flex-wrap gap-2">
           <button

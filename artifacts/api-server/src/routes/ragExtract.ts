@@ -20,14 +20,26 @@ import OpenAI from "openai";
 import { createRequire } from "module";
 import {
   ALLOWED_EXTRACT_FIELDS,
+  createSession,
   getSession,
   updateSession,
 } from "../lib/copilotData.js";
 
 // ── CJS interop for pdf-parse and mammoth ─────────────────────
 const require = createRequire(import.meta.url);
+
+// pdf-parse v2 exports a class-based API — NOT a default function.
+// Usage: new PDFParse({ data: buf }) → await .getText() → result.text
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const pdfParse: (buf: Buffer) => Promise<{ text: string }> = require("pdf-parse");
+const { PDFParse, VerbosityLevel } = require("pdf-parse") as {
+  PDFParse: new (opts: {
+    data?: Buffer | Uint8Array;
+    verbosity?: number;
+    [k: string]: unknown;
+  }) => { getText(p?: unknown): Promise<{ text: string; pages?: unknown[] }> };
+  VerbosityLevel: Record<string, number>;
+};
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mammoth: { extractRawText: (opts: { buffer: Buffer }) => Promise<{ value: string }> } = require("mammoth");
 
@@ -128,8 +140,10 @@ async function ragRetrieve(text: string, topK = 6): Promise<string> {
 
 // ── Document parsers ───────────────────────────────────────────
 async function parsePdf(buf: Buffer): Promise<string> {
-  const { text } = await pdfParse(buf);
-  return text;
+  // pdf-parse v2: class-based API — pass data in constructor, then call getText()
+  const parser = new PDFParse({ data: buf, verbosity: VerbosityLevel.ERRORS ?? 0 });
+  const result = await parser.getText();
+  return result.text ?? "";
 }
 
 async function parseDocx(buf: Buffer): Promise<string> {
@@ -330,8 +344,13 @@ router.post(
           return f;
         });
 
-      // ── Store in session (only filtered fields, no raw text) ──
-      updateSession(sid, { fields: filteredFields });
+      // ── Store in session (upsert: create if new, update if existing) ──
+      // updateSession silently returns null for unknown IDs — always create first.
+      if (!getSession(sid)) {
+        createSession(sid, { fields: filteredFields, consentLog: [] });
+      } else {
+        updateSession(sid, { fields: filteredFields });
+      }
 
       res.json({
         sessionId: sid,

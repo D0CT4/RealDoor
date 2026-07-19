@@ -228,8 +228,8 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
           {t("Stage 1 — Profile: Document Extraction")}
         </h2>
         <p className="text-sm text-muted-foreground leading-relaxed">
-          {t("Paste a")} <strong>{t("synthetic")}</strong>{" "}
-          {t("pay stub or benefit letter below. The tool extracts only 5 allowlisted fields — no SSNs, addresses, or account numbers. Raw text is never stored.")}
+          {t("Upload a")} <strong>{t("synthetic")}</strong>{" "}
+          {t("pay stub, benefit letter, or other income document. The tool extracts only 7 allowlisted fields — no SSNs, addresses, or account numbers. Raw text is never stored.")}
         </p>
       </div>
 

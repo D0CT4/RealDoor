@@ -520,6 +520,8 @@ export function deleteSession(id: string): boolean {
 export const ALLOWED_EXTRACT_FIELDS = [
   { key: "applicantName",  label: "Applicant Name" },
   { key: "monthlyIncome",  label: "Monthly Gross Income ($)" },
+  { key: "grossAmount",    label: "Gross Pay Per Period ($)" },
+  { key: "payFrequency",   label: "Pay Frequency" },
   { key: "incomeSource",   label: "Employer / Benefit Source" },
   { key: "documentDate",   label: "Document Date" },
   { key: "documentType",   label: "Document Type" },
