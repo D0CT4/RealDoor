@@ -64,10 +64,11 @@ function BboxDiagram({
   const sx = W / 612;
   const sy = H / 792;
   const [x1, y1, x2, y2] = bbox;
-  const rx = x1 * sx;
-  const ry = y1 * sy;
+  // PDF origin is bottom-left; SVG origin is top-left — flip the y axis.
   const rw = Math.max(2, (x2 - x1) * sx);
   const rh = Math.max(2, (y2 - y1) * sy);
+  const rx = x1 * sx;
+  const ry = H - y2 * sy;   // convert PDF y2 (from bottom) → SVG top edge
   const { fill, stroke } = BBOX_COLORS[confidence];
 
   return (
