@@ -244,7 +244,7 @@ export default function Stage2Understand({ sessionId }: Props) {
           {t("Stage 2 — Understand: Rules & Calculations")}
         </h2>
         <p className="text-sm text-muted-foreground">
-          {t("Ask questions about Section 8 HCV program rules (NYC/NYCHA, rule year 2026). Every answer shows the authoritative citation and effective date. This tool explains rules — it does not determine eligibility.")}
+          {t("Ask questions about program rules and the FY 2026 frozen MTSP income limits (Boston-Cambridge-Quincy HMFA). Every answer cites the authoritative source and effective date. This tool explains rules — it does not determine eligibility.")}
         </p>
       </div>
 

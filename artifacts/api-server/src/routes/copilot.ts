@@ -961,7 +961,7 @@ router.get("/copilot/rules/corpus", (_req, res): void => {
   res.json({
     frozen_date: FROZEN_CHALLENGE_DATE,
     rules: HACKATHON_RULE_CORPUS,
-    disclaimer: "This corpus is frozen for the hackathon simulation as of 2026-07-18. It is not legal advice.",
+    disclaimer: "This corpus combines cited official facts with clearly labeled hackathon conventions. It is frozen as of 2026-07-18. It is not legal advice and is not a substitute for an owner, allocating agency, or compliance professional's current procedures.",
   });
 });
 
