@@ -61,7 +61,13 @@ router.post("/copilot/extract", async (req, res): Promise<void> => {
     return;
   }
 
-  const sid = sessionId ?? crypto.randomUUID();
+  // Only reuse a client-supplied session ID when it refers to a real existing
+  // session — otherwise mint a fresh server-side ID (prevents session fixation
+  // via attacker-chosen IDs).
+  const sid =
+    typeof sessionId === "string" && getSession(sessionId)
+      ? sessionId
+      : crypto.randomUUID();
 
   // Check for injection in input before even sending to model
   const inputInjection = INJECTION_PATTERNS.some((p) => p.test(documentText));

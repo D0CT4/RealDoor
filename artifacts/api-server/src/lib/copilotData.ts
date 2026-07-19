@@ -271,13 +271,33 @@ export interface SessionData {
 
 const sessionStore = new Map<string, SessionData>();
 
+// Sessions are ephemeral by design (privacy requirement): any session not
+// touched within the TTL window is permanently swept from memory.
+const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const sessionTouchedAt = new Map<string, number>();
+
+function sweepExpiredSessions(): void {
+  const now = Date.now();
+  for (const [id, touched] of sessionTouchedAt) {
+    if (now - touched > SESSION_TTL_MS) {
+      sessionStore.delete(id);
+      sessionTouchedAt.delete(id);
+    }
+  }
+}
+
 export function getSession(id: string): SessionData | undefined {
-  return sessionStore.get(id);
+  sweepExpiredSessions();
+  const s = sessionStore.get(id);
+  if (s) sessionTouchedAt.set(id, Date.now());
+  return s;
 }
 
 export function createSession(id: string, data: Omit<SessionData, "sessionId" | "createdAt">): SessionData {
+  sweepExpiredSessions();
   const session: SessionData = { sessionId: id, createdAt: new Date().toISOString(), ...data };
   sessionStore.set(id, session);
+  sessionTouchedAt.set(id, Date.now());
   return session;
 }
 
@@ -286,10 +306,12 @@ export function updateSession(id: string, updates: Partial<SessionData>): Sessio
   if (!s) return null;
   const updated = { ...s, ...updates };
   sessionStore.set(id, updated);
+  sessionTouchedAt.set(id, Date.now());
   return updated;
 }
 
 export function deleteSession(id: string): boolean {
+  sessionTouchedAt.delete(id);
   return sessionStore.delete(id);
 }
 
