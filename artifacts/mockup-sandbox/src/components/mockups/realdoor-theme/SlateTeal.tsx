@@ -9,7 +9,7 @@ export function SlateTeal() {
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-12">
             <a href="#" className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <span className="text-[#14B8A6]">NIDO</span>
+              <span className="text-[#14B8A6]">RealDoor</span>
             </a>
             <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-300">
               <a href="#" className="hover:text-white transition-colors">Home</a>
@@ -42,7 +42,7 @@ export function SlateTeal() {
             Find affordable housing in <span className="text-[#14B8A6]">NYC</span>
           </h1>
           <p className="text-xl text-slate-400 mb-8 max-w-2xl leading-relaxed">
-            Discover programs, track your eligibility, and apply for housing lotteries with NIDO's bilingual assistance platform.
+            Discover programs, track your eligibility, and apply for housing lotteries with RealDoor's bilingual assistance platform.
           </p>
           
           {/* Language Selector Below Hero */}

@@ -11,7 +11,7 @@ export function NavyGlass() {
       {/* Header */}
       <header className="sticky top-0 z-50 flex items-center justify-between px-6 py-4" style={{ background: 'linear-gradient(to bottom, #0A1929, #112840)' }}>
         <div className="flex items-center gap-8">
-          <div className="text-2xl font-bold tracking-tight">NIDO</div>
+          <div className="text-2xl font-bold tracking-tight">RealDoor</div>
           <nav className="hidden md:flex items-center gap-6 text-sm font-medium" style={{ color: 'rgba(255,255,255,0.85)' }}>
             <a href="#" className="hover:text-white transition-colors">Home</a>
             <a href="#" className="hover:text-white transition-colors">Programs</a>

@@ -4,8 +4,9 @@
 
 ## What it does
 
-RealDoor is a renter-side application-readiness copilot for Section 8 / HCV and LIHTC
-applications. It extracts a small allowlisted set of fields from income documents,
+RealDoor is a housing-assistance platform for renters. This note covers its
+application-readiness copilot feature for Section 8 / HCV and LIHTC
+applications. The copilot extracts a small allowlisted set of fields from income documents,
 checks a document checklist, compares annualized income against the frozen 60% MTSP
 threshold, and produces a reviewable packet. It **never makes an eligibility decision**
 — it returns `READY_TO_REVIEW` or `NEEDS_REVIEW` with cited reasons.

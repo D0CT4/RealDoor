@@ -1,8 +1,8 @@
-# NIDO
+# RealDoor
 
-The project/brand name is **NIDO** (user-chosen). Artifact dir remains `artifacts/housing-navigator`.
+The project/brand name is **RealDoor** (user-chosen). Artifact dir remains `artifacts/housing-navigator`.
 
-Bilingual (EN/ES) housing assistance tool for NYC renters: rent-burden calculator, assistance program guide, affordable listings, and the "RealDoor" Section 8 application-readiness copilot. The copilot runs a 3-stage flow (upload & confirm → understand rules → prepare packet), flags uploaded documents that don't match any checklist item, and generates a schema-conformant scored `submission.json` (frozen FY2026 Boston MTSP thresholds, page-level bbox citations, READY_TO_REVIEW / NEEDS_REVIEW status — never an eligibility decision).
+RealDoor is a bilingual (EN/ES) housing assistance tool for NYC renters: rent-burden calculator, assistance program guide, affordable listings, and a Section 8 application-readiness copilot (a feature of RealDoor, not a separate product). See `docs/PITCH.md` for the project pitch. The copilot runs a 3-stage flow (upload & confirm → understand rules → prepare packet), flags uploaded documents that don't match any checklist item, and generates a schema-conformant scored `submission.json` (frozen FY2026 Boston MTSP thresholds, page-level bbox citations, READY_TO_REVIEW / NEEDS_REVIEW status — never an eligibility decision).
 
 ## Run & Operate
 

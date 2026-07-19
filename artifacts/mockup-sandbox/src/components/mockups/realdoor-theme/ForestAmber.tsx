@@ -5,12 +5,12 @@ export function ForestAmber() {
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: `
-        .nido-bg { background-color: #F8F6F0; color: #1A3D2B; }
-        .nido-header { background-color: #1A3D2B; }
-        .nido-text-forest { color: #1A3D2B; }
-        .nido-text-amber { color: #C8922A; }
-        .nido-text-muted { color: rgba(26,61,43,0.8); }
-        .nido-text-light { color: rgba(26,61,43,0.6); }
+        .realdoor-bg { background-color: #F8F6F0; color: #1A3D2B; }
+        .realdoor-header { background-color: #1A3D2B; }
+        .realdoor-text-forest { color: #1A3D2B; }
+        .realdoor-text-amber { color: #C8922A; }
+        .realdoor-text-muted { color: rgba(26,61,43,0.8); }
+        .realdoor-text-light { color: rgba(26,61,43,0.6); }
 
         .glass-btn-primary {
           background: linear-gradient(135deg, #1A3D2B 0%, #254D38 100%);
@@ -53,22 +53,22 @@ export function ForestAmber() {
           background: rgba(26,61,43,0.12);
         }
 
-        .form-input-nido {
+        .form-input-realdoor {
           background: white;
           border: 1px solid rgba(26,61,43,0.2);
           color: #1A3D2B;
           transition: all 0.2s ease;
         }
-        .form-input-nido::placeholder {
+        .form-input-realdoor::placeholder {
           color: #8FAE9F;
         }
-        .form-input-nido:focus {
+        .form-input-realdoor:focus {
           border-color: #1A3D2B;
           box-shadow: 0 0 0 3px rgba(26,61,43,0.1);
           outline: none;
         }
 
-        .card-nido {
+        .card-realdoor {
           background: white;
           border: 1px solid rgba(26,61,43,0.12);
           box-shadow: 0 2px 12px rgba(26,61,43,0.06), 0 8px 32px rgba(26,61,43,0.04);
@@ -90,16 +90,16 @@ export function ForestAmber() {
         }
       `}} />
 
-      <div className="min-h-screen font-sans nido-bg pb-24">
+      <div className="min-h-screen font-sans realdoor-bg pb-24">
         {/* Header */}
-        <header className="sticky top-0 z-50 w-full nido-header">
+        <header className="sticky top-0 z-50 w-full realdoor-header">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white glass-btn-amber shadow-none hover:shadow-none hover:translate-y-0 cursor-pointer">
                   <Home size={18} />
                 </div>
-                <span className="text-xl font-bold tracking-tight text-white">NIDO</span>
+                <span className="text-xl font-bold tracking-tight text-white">RealDoor</span>
               </div>
               
               <nav className="hidden md:flex space-x-8">
@@ -134,8 +134,8 @@ export function ForestAmber() {
                 NYC Housing Assistance 2024
               </div>
               
-              <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.1] nido-text-forest">
-                Find housing programs you <span className="nido-text-amber relative whitespace-nowrap">
+              <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.1] realdoor-text-forest">
+                Find housing programs you <span className="realdoor-text-amber relative whitespace-nowrap">
                   qualify
                   <svg className="absolute w-full h-3 -bottom-1 left-0 text-[#C8922A]/30" viewBox="0 0 100 10" preserveAspectRatio="none">
                     <path d="M0 5 Q 50 10 100 5" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
@@ -143,15 +143,15 @@ export function ForestAmber() {
                 </span> for.
               </h1>
               
-              <p className="text-lg sm:text-xl leading-relaxed max-w-2xl nido-text-muted">
-                NIDO helps New Yorkers navigate rent assistance, affordable housing lotteries, and emergency programs in multiple languages.
+              <p className="text-lg sm:text-xl leading-relaxed max-w-2xl realdoor-text-muted">
+                RealDoor helps New Yorkers navigate rent assistance, affordable housing lotteries, and emergency programs in multiple languages.
               </p>
 
               <div className="flex flex-col sm:flex-row sm:items-center gap-4 pt-4">
-                <span className="text-sm font-bold uppercase tracking-wider nido-text-light">Available in:</span>
+                <span className="text-sm font-bold uppercase tracking-wider realdoor-text-light">Available in:</span>
                 <div className="flex flex-wrap gap-2">
                   {['Español', '中文', 'বাংলা', 'Русский'].map((lang) => (
-                    <button key={lang} className="text-sm font-medium px-4 py-1.5 rounded-full transition-colors bg-black/5 hover:bg-black/10 nido-text-forest">
+                    <button key={lang} className="text-sm font-medium px-4 py-1.5 rounded-full transition-colors bg-black/5 hover:bg-black/10 realdoor-text-forest">
                       {lang}
                     </button>
                   ))}
@@ -160,33 +160,33 @@ export function ForestAmber() {
             </div>
 
             {/* Eligibility Card */}
-            <div className="w-full lg:w-[440px] shrink-0 rounded-2xl p-6 sm:p-8 card-nido relative overflow-hidden">
+            <div className="w-full lg:w-[440px] shrink-0 rounded-2xl p-6 sm:p-8 card-realdoor relative overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#1A3D2B] to-[#C8922A]"></div>
-              <h2 className="text-2xl font-bold mb-6 nido-text-forest">Check Eligibility</h2>
+              <h2 className="text-2xl font-bold mb-6 realdoor-text-forest">Check Eligibility</h2>
               
               <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
                 <div className="space-y-1.5">
-                  <label className="text-sm font-bold nido-text-forest">Monthly Income (Gross)</label>
+                  <label className="text-sm font-bold realdoor-text-forest">Monthly Income (Gross)</label>
                   <div className="relative">
                     <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8FAE9F]" />
-                    <input type="text" placeholder="0.00" className="w-full pl-9 pr-4 py-3 rounded-lg text-sm form-input-nido" />
+                    <input type="text" placeholder="0.00" className="w-full pl-9 pr-4 py-3 rounded-lg text-sm form-input-realdoor" />
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-sm font-bold nido-text-forest">Current Rent</label>
+                  <label className="text-sm font-bold realdoor-text-forest">Current Rent</label>
                   <div className="relative">
                     <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8FAE9F]" />
-                    <input type="text" placeholder="0.00" className="w-full pl-9 pr-4 py-3 rounded-lg text-sm form-input-nido" />
+                    <input type="text" placeholder="0.00" className="w-full pl-9 pr-4 py-3 rounded-lg text-sm form-input-realdoor" />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-sm font-bold nido-text-forest">Household</label>
+                    <label className="text-sm font-bold realdoor-text-forest">Household</label>
                     <div className="relative">
                       <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8FAE9F]" />
-                      <select className="w-full pl-9 pr-8 py-3 rounded-lg text-sm appearance-none form-input-nido cursor-pointer">
+                      <select className="w-full pl-9 pr-8 py-3 rounded-lg text-sm appearance-none form-input-realdoor cursor-pointer">
                         <option>1 Person</option>
                         <option>2 People</option>
                         <option>3 People</option>
@@ -197,10 +197,10 @@ export function ForestAmber() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-sm font-bold nido-text-forest">Borough</label>
+                    <label className="text-sm font-bold realdoor-text-forest">Borough</label>
                     <div className="relative">
                       <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8FAE9F]" />
-                      <select className="w-full pl-9 pr-8 py-3 rounded-lg text-sm appearance-none form-input-nido cursor-pointer">
+                      <select className="w-full pl-9 pr-8 py-3 rounded-lg text-sm appearance-none form-input-realdoor cursor-pointer">
                         <option>Bronx</option>
                         <option>Brooklyn</option>
                         <option>Manhattan</option>
@@ -226,25 +226,25 @@ export function ForestAmber() {
           <div className="mt-24 space-y-8">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h3 className="text-3xl font-bold nido-text-forest">Recommended Programs</h3>
-                <p className="mt-1 nido-text-muted">Based on your provided details</p>
+                <h3 className="text-3xl font-bold realdoor-text-forest">Recommended Programs</h3>
+                <p className="mt-1 realdoor-text-muted">Based on your provided details</p>
               </div>
-              <a href="#" className="text-sm font-bold hover:underline nido-text-amber inline-flex items-center gap-1">
+              <a href="#" className="text-sm font-bold hover:underline realdoor-text-amber inline-flex items-center gap-1">
                 View all 12 programs <ArrowRight size={14} />
               </a>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {/* Card 1 */}
-              <div className="flex flex-col rounded-2xl p-6 h-full card-nido group hover:-translate-y-1 transition-transform duration-300">
+              <div className="flex flex-col rounded-2xl p-6 h-full card-realdoor group hover:-translate-y-1 transition-transform duration-300">
                 <div className="mb-5">
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-bold badge-success">
                     <Leaf size={14} />
                     Income within threshold
                   </span>
                 </div>
-                <h4 className="text-2xl font-bold mb-3 nido-text-forest">CityFHEPS</h4>
-                <p className="text-sm flex-grow mb-8 leading-relaxed nido-text-muted">
+                <h4 className="text-2xl font-bold mb-3 realdoor-text-forest">CityFHEPS</h4>
+                <p className="text-sm flex-grow mb-8 leading-relaxed realdoor-text-muted">
                   A rental assistance supplement to help individuals and families find and keep housing. Covers up to 70% of rent for eligible households.
                 </p>
                 <button className="w-full flex items-center justify-center gap-2 py-3 px-4 glass-btn-amber">
@@ -254,15 +254,15 @@ export function ForestAmber() {
               </div>
 
               {/* Card 2 */}
-              <div className="flex flex-col rounded-2xl p-6 h-full card-nido group hover:-translate-y-1 transition-transform duration-300">
+              <div className="flex flex-col rounded-2xl p-6 h-full card-realdoor group hover:-translate-y-1 transition-transform duration-300">
                 <div className="mb-5">
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-bold badge-success">
                     <Leaf size={14} />
                     Income within threshold
                   </span>
                 </div>
-                <h4 className="text-2xl font-bold mb-3 nido-text-forest">FHEPS</h4>
-                <p className="text-sm flex-grow mb-8 leading-relaxed nido-text-muted">
+                <h4 className="text-2xl font-bold mb-3 realdoor-text-forest">FHEPS</h4>
+                <p className="text-sm flex-grow mb-8 leading-relaxed realdoor-text-muted">
                   Rent supplement for families with children who receive Cash Assistance and are facing eviction.
                 </p>
                 <button className="w-full flex items-center justify-center gap-2 py-3 px-4 glass-btn-secondary">
@@ -271,15 +271,15 @@ export function ForestAmber() {
               </div>
 
               {/* Card 3 */}
-              <div className="flex flex-col rounded-2xl p-6 h-full card-nido group hover:-translate-y-1 transition-transform duration-300">
+              <div className="flex flex-col rounded-2xl p-6 h-full card-realdoor group hover:-translate-y-1 transition-transform duration-300">
                 <div className="mb-5">
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-bold badge-warning">
                     <AlertCircle size={14} />
                     Income above threshold
                   </span>
                 </div>
-                <h4 className="text-2xl font-bold mb-3 nido-text-forest">Mitchell-Lama</h4>
-                <p className="text-sm flex-grow mb-8 leading-relaxed nido-text-muted">
+                <h4 className="text-2xl font-bold mb-3 realdoor-text-forest">Mitchell-Lama</h4>
+                <p className="text-sm flex-grow mb-8 leading-relaxed realdoor-text-muted">
                   Affordable rental and cooperative housing for moderate- and middle-income families. Open waiting list status varies.
                 </p>
                 <button className="w-full flex items-center justify-center gap-2 py-3 px-4 glass-btn-secondary">

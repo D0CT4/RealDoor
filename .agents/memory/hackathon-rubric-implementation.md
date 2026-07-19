@@ -1,6 +1,6 @@
 ---
 name: Hackathon Rubric Implementation
-description: How NIDO implements the RealDoor hackathon starter pack rubric (extraction, calculation, doc-readiness, citations, safety, LIHTC data).
+description: How RealDoor implements the RealDoor hackathon starter pack rubric (extraction, calculation, doc-readiness, citations, safety, LIHTC data).
 ---
 
 ## Core rule: hackathon program is Boston-Cambridge-Quincy LIHTC, not NYC Section 8
