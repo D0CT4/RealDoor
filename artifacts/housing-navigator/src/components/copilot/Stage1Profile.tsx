@@ -40,6 +40,74 @@ const CONFIDENCE_META = {
   low:    { label: "Low confidence",    color: "text-red-700",    bg: "bg-red-50 border-red-200"       },
 };
 
+// ── BboxDiagram ────────────────────────────────────────────────
+// Renders a miniature page schematic (PDF coordinate space 612×792)
+// with the extracted bounding box highlighted in the confidence colour.
+const BBOX_COLORS = {
+  high:   { fill: "#dcfce7", stroke: "#16a34a" },  // green
+  medium: { fill: "#fef9c3", stroke: "#ca8a04" },  // amber
+  low:    { fill: "#fee2e2", stroke: "#dc2626" },  // red
+};
+
+function BboxDiagram({
+  bbox,
+  page,
+  confidence,
+}: {
+  bbox: [number, number, number, number];
+  page: number;
+  confidence: "high" | "medium" | "low";
+}) {
+  // SVG canvas: 52 wide × 67 tall  →  scale = 52/612 ≈ 0.085
+  const W = 52;
+  const H = 67;
+  const sx = W / 612;
+  const sy = H / 792;
+  const [x1, y1, x2, y2] = bbox;
+  const rx = x1 * sx;
+  const ry = y1 * sy;
+  const rw = Math.max(2, (x2 - x1) * sx);
+  const rh = Math.max(2, (y2 - y1) * sy);
+  const { fill, stroke } = BBOX_COLORS[confidence];
+
+  return (
+    <div
+      className="flex-shrink-0 flex flex-col items-center gap-0.5"
+      aria-label={`Source box on page ${page}: region at ${Math.round(x1)},${Math.round(y1)} to ${Math.round(x2)},${Math.round(y2)}`}
+      title={`Page ${page} · bbox [${bbox.map(Math.round).join(", ")}]`}
+    >
+      <svg
+        width={W}
+        height={H}
+        viewBox={`0 0 ${W} ${H}`}
+        className="rounded border border-border bg-white shadow-sm"
+        role="img"
+        aria-hidden="true"
+      >
+        {/* page background */}
+        <rect x={0} y={0} width={W} height={H} fill="#f8fafc" />
+        {/* faint ruled lines to suggest text */}
+        {[10, 16, 22, 28, 34, 40, 46, 52, 58].map((lineY) => (
+          <line key={lineY} x1={4} y1={lineY} x2={W - 4} y2={lineY} stroke="#e2e8f0" strokeWidth={0.8} />
+        ))}
+        {/* highlighted bbox */}
+        <rect
+          x={rx}
+          y={ry}
+          width={rw}
+          height={rh}
+          fill={fill}
+          fillOpacity={0.7}
+          stroke={stroke}
+          strokeWidth={1.2}
+          rx={1}
+        />
+      </svg>
+      <span className="text-[9px] text-muted-foreground leading-none">p.{page}</span>
+    </div>
+  );
+}
+
 const MAX_FILES = 10;
 
 const ACCEPTED_MIME = new Set([
@@ -590,10 +658,21 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
                     </p>
                   )}
 
-                  {field.sourceSnippet && !isEditing && (
-                    <p className="mt-1.5 text-xs text-muted-foreground italic">
-                      {t("Evidence:")}{" "}&ldquo;{field.sourceSnippet}&rdquo;
-                    </p>
+                  {!isEditing && (field.sourceSnippet || field.bbox) && (
+                    <div className="mt-1.5 flex items-start gap-2">
+                      {field.bbox && (
+                        <BboxDiagram
+                          bbox={field.bbox}
+                          page={field.page ?? 1}
+                          confidence={field.confidence ?? "low"}
+                        />
+                      )}
+                      {field.sourceSnippet && (
+                        <p className="text-xs text-muted-foreground italic leading-relaxed">
+                          {t("Evidence:")}{" "}&ldquo;{field.sourceSnippet}&rdquo;
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
               );
