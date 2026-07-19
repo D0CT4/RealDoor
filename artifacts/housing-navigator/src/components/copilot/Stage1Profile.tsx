@@ -192,6 +192,7 @@ export default function Stage1Profile({ sessionId: existingSession, onConfirmed 
           const f = files[i];
           const form = new FormData();
           form.append("file", f);
+          form.append("documentName", f.name);
           if (lastSessionId) form.append("sessionId", lastSessionId);
 
           const res = await fetch("/api/copilot/rag-extract", { method: "POST", body: form });

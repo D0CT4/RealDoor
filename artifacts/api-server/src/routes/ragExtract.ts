@@ -20,9 +20,11 @@ import OpenAI from "openai";
 import { createRequire } from "module";
 import {
   ALLOWED_EXTRACT_FIELDS,
+  appendDocument,
   createSession,
   getSession,
   updateSession,
+  type DocumentRecord,
 } from "../lib/copilotData.js";
 
 // ── CJS interop for pdf-parse and mammoth ─────────────────────
@@ -212,6 +214,7 @@ router.post(
         documentText?: string;
         sessionId?: string;
         documentId?: string;
+        documentName?: string;
       };
 
       let rawText: string | null = null;
@@ -332,41 +335,69 @@ router.post(
         gptResult = JSON.parse(cleaned);
       }
 
-      // ── Filter to allowlist ──────────────────────────────────
+      // ── Compute source type and document identity early ──────
+      const sourceType = isVisionMode
+        ? "image"
+        : file?.mimetype === "application/pdf"
+        ? "pdf"
+        : file?.mimetype === "text/plain"
+        ? "txt"
+        : file
+        ? "docx"
+        : "text";
+
+      const docId   = body.documentId ?? body.documentName ?? file?.originalname ?? (file ? file.fieldname : null) ?? "text-paste";
+      const docName = body.documentName ?? docId;
+
+      // ── Filter to allowlist; stamp identity fields ───────────
       const allowedKeys = new Set(ALLOWED_EXTRACT_FIELDS.map((f) => f.key));
       const filteredFields = (gptResult.fields ?? [])
         .filter((f) => allowedKeys.has(f.key))
-        .map((f) => {
+        .map((f): import("../lib/copilotData.js").ExtractedField => {
           // ── bbox validation: clamp to 612×792 PDF point page (ADV-010) ──
-          if (f.bbox) {
-            const [x1, y1, x2, y2] = f.bbox;
-            const valid =
-              x1 >= 0 && y1 >= 0 && x2 <= 612 && y2 <= 792 && x1 < x2 && y1 < y2;
-            if (!valid) f.bbox = [50, 50, 562, 742]; // fallback within bounds
+          let bbox: [number, number, number, number] | null = f.bbox ?? null;
+          if (bbox) {
+            const [x1, y1, x2, y2] = bbox;
+            const valid = x1 >= 0 && y1 >= 0 && x2 <= 612 && y2 <= 792 && x1 < x2 && y1 < y2;
+            if (!valid) bbox = [50, 50, 562, 742];
           }
-          return f;
+          return {
+            key: f.key,
+            label: f.label,
+            value: f.value ?? null,
+            confidence: f.confidence,
+            page: f.page ?? 1,
+            bbox,
+            sourceDocId: docId,   // ← stamped here, not in a subsequent forEach
+            sourceSnippet: f.sourceSnippet ?? null,
+            confirmed: false,
+          };
         });
 
       // ── Store in session (upsert: create if new, update if existing) ──
       // updateSession silently returns null for unknown IDs — always create first.
       if (!getSession(sid)) {
-        createSession(sid, { fields: filteredFields, consentLog: [] });
+        createSession(sid, { fields: filteredFields, consentLog: [], documents: [] });
       } else {
         updateSession(sid, { fields: filteredFields });
       }
+
+      // ── Append per-document RAG record (for cross-reference in packet) ──
+      const docRecord: DocumentRecord = {
+        id: docId,
+        name: docName,
+        sourceType,
+        fields: filteredFields.map((f) => ({ ...f })),
+        processedAt: new Date().toISOString(),
+      };
+      appendDocument(sid, docRecord);
 
       res.json({
         sessionId: sid,
         fields: filteredFields,
         warningDetected: !!(gptResult.warningDetected || injectionFlagged),
         ragUsed: !isVisionMode && (rawText?.length ?? 0) > CHUNK_THRESHOLD,
-        sourceType: isVisionMode
-          ? "image"
-          : file?.mimetype === "application/pdf"
-          ? "pdf"
-          : file
-          ? "docx"
-          : "text",
+        sourceType,
         citation: {
           rule_id: "CH-SAFETY-001",
           note: "Raw document content is never stored. Only the 7 allowlisted fields are persisted in the ephemeral session.",

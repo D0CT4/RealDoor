@@ -28,6 +28,7 @@ import {
   addFeedback,
   getFeedbackStats,
   type ExtractedField,
+  type DocumentRecord,
 } from "../lib/copilotData.js";
 
 const router: IRouter = Router();
@@ -213,6 +214,7 @@ OUTPUT: Return ONLY valid JSON with no markdown, no preamble, exactly this shape
 
     createSession(sid, {
       fields: safeFields,
+      documents: [],
       consentLog: [
         {
           action: "extract",
@@ -653,12 +655,103 @@ router.post("/copilot/packet", async (req, res): Promise<void> => {
     .filter((f) => f.confirmed)
     .map((f) => ({
       field: f.label,
-      value: f.editedValue ?? f.value ?? "(not extracted)",
+      key: f.key,
+      value: f.editedValue ?? f.value ?? null,
       confidence: f.confidence,
       page: f.page ?? null,
       bbox: f.bbox ?? null,
+      sourceSnippet: f.sourceSnippet ?? null,
+      sourceDocId: f.sourceDocId ?? null,
       confirmedByRenter: true,
     }));
+
+  // ── Per-document RAG extraction summary ────────────────────
+  const docs: DocumentRecord[] = session.documents ?? [];
+
+  const extractedDocuments = docs.map((doc) => ({
+    documentName: doc.name,
+    sourceType: doc.sourceType,
+    processedAt: doc.processedAt,
+    fields: doc.fields.map((f) => ({
+      field: f.label,
+      key: f.key,
+      value: f.value ?? null,
+      confidence: f.confidence,
+      sourceSnippet: f.sourceSnippet ?? null,
+      page: f.page ?? null,
+      bbox: f.bbox ?? null,
+    })),
+  }));
+
+  // ── Cross-reference analysis ────────────────────────────────
+  function docAnnualIncome(doc: DocumentRecord): number | null {
+    const gf = doc.fields.find((f) => f.key === "grossAmount" && f.value);
+    const ff = doc.fields.find((f) => f.key === "payFrequency" && f.value);
+    const mf = doc.fields.find((f) => f.key === "monthlyIncome" && f.value);
+    if (gf?.value && ff?.value) {
+      const mult = (INCOME_FREQUENCY as Record<string, number>)[ff.value.toLowerCase().trim()];
+      if (mult) return parseFloat(gf.value) * mult;
+    }
+    if (mf?.value) return parseFloat(mf.value) * 12;
+    return null;
+  }
+
+  const incomePerDoc = docs
+    .map((doc) => ({ documentName: doc.name, annualizedIncome: docAnnualIncome(doc) }))
+    .filter((d): d is { documentName: string; annualizedIncome: number } => d.annualizedIncome !== null);
+
+  type IncomeConsistency = "consistent" | "inconsistent" | "single_source" | "no_income_data";
+  let incomeConsistency: IncomeConsistency = "no_income_data";
+  let incomeDiscrepancy: string | null = null;
+  if (incomePerDoc.length === 1) {
+    incomeConsistency = "single_source";
+  } else if (incomePerDoc.length > 1) {
+    const incomes = incomePerDoc.map((d) => d.annualizedIncome);
+    const minI = Math.min(...incomes), maxI = Math.max(...incomes);
+    const pctDiff = (maxI - minI) / (minI || 1);
+    if (pctDiff > 0.05) {
+      incomeConsistency = "inconsistent";
+      incomeDiscrepancy = `${minI.toFixed(0)}–${maxI.toFixed(0)} (${(pctDiff * 100).toFixed(1)}% variance)`;
+    } else {
+      incomeConsistency = "consistent";
+    }
+  }
+
+  const nameValues = docs
+    .map((doc) => doc.fields.find((f) => f.key === "applicantName")?.value)
+    .filter((v): v is string => !!v);
+  const uniqueNames = [...new Set(nameValues.map((n) => n.trim().toLowerCase()))];
+
+  const sixMonthsAgo = new Date(generatedAt);
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+  const dateChecks = docs.map((doc) => {
+    const dateField = doc.fields.find((f) => f.key === "documentDate" && f.value);
+    if (!dateField?.value) return { documentName: doc.name, status: "no_date" };
+    const d = new Date(dateField.value);
+    return {
+      documentName: doc.name,
+      documentDate: dateField.value,
+      status: isNaN(d.getTime()) ? "invalid_date" : d < sixMonthsAgo ? "stale" : "current",
+    };
+  });
+
+  const docTypesCovered = docs.flatMap((doc) =>
+    doc.fields
+      .filter((f) => f.key === "documentType" && f.value)
+      .map((f) => ({ documentName: doc.name, type: f.value! }))
+  );
+
+  const crossReference = {
+    documentsProcessed: docs.length,
+    incomeConsistency,
+    incomeDiscrepancy,
+    incomePerDocument: incomePerDoc,
+    nameConsistency: uniqueNames.length <= 1 ? "consistent" : "inconsistent",
+    applicantNamesFound: [...new Set(nameValues)],
+    documentDateStatus: dateChecks,
+    documentTypesCovered: docTypesCovered,
+    note: "Cross-reference is informational only. A qualified housing counselor must verify all data.",
+  };
 
   const presentDocs = SECTION8_CHECKLIST_2026
     .filter((item) => statuses[item.id] === "present")
@@ -785,6 +878,10 @@ router.post("/copilot/packet", async (req, res): Promise<void> => {
           ? "One or more issues require human review before submitting an application. See readinessAssessment.reasons."
           : "All required documents appear to be present and current.",
     },
+    // ── Full per-document RAG extraction (all fields + evidence) ──
+    extractedDocuments,
+    // ── Cross-reference analysis across all uploaded documents ────
+    crossReference,
     consentLog: session.consentLog,
   };
 

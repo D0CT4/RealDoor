@@ -463,11 +463,21 @@ export interface ConsentEntry {
   description: string;
 }
 
+/** One uploaded / pasted document's raw RAG extraction result */
+export interface DocumentRecord {
+  id: string;          // filename slug or "text-paste"
+  name: string;        // display name (original filename)
+  sourceType: string;  // "pdf" | "docx" | "image" | "txt" | "text"
+  fields: ExtractedField[];
+  processedAt: string;
+}
+
 export interface SessionData {
   sessionId: string;
   createdAt: string;
   confirmedAt?: string;
-  fields: ExtractedField[];
+  fields: ExtractedField[];       // merged confirmed fields (Stage 1 output)
+  documents: DocumentRecord[];    // per-document RAG records for cross-reference
   consentLog: ConsentEntry[];
 }
 
@@ -497,10 +507,27 @@ export function getSession(id: string): SessionData | undefined {
 
 export function createSession(id: string, data: Omit<SessionData, "sessionId" | "createdAt">): SessionData {
   sweepExpiredSessions();
-  const session: SessionData = { sessionId: id, createdAt: new Date().toISOString(), ...data };
+  // Destructure so we can provide a default for documents without a duplicate-key TS2783 warning.
+  const { documents = [], ...rest } = data;
+  const session: SessionData = {
+    sessionId: id,
+    createdAt: new Date().toISOString(),
+    documents,
+    ...rest,
+  };
   sessionStore.set(id, session);
   sessionTouchedAt.set(id, Date.now());
   return session;
+}
+
+/** Append a DocumentRecord without replacing the rest of the session. */
+export function appendDocument(id: string, doc: DocumentRecord): SessionData | null {
+  const s = sessionStore.get(id);
+  if (!s) return null;
+  const updated = { ...s, documents: [...(s.documents ?? []), doc] };
+  sessionStore.set(id, updated);
+  sessionTouchedAt.set(id, Date.now());
+  return updated;
 }
 
 export function updateSession(id: string, updates: Partial<SessionData>): SessionData | null {

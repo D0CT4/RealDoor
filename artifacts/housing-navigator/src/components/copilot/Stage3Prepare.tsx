@@ -2,8 +2,42 @@ import { useEffect, useState } from "react";
 import {
   AlertCircle, AlertTriangle, CheckCircle2, Download,
   FileDown, Loader2, Trash2, XCircle, ShieldCheck, ShieldAlert, Package,
+  FileText, GitCompare, TrendingUp, User, Calendar, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
+
+// ── Packet type (matches API response shape) ──────────────────
+interface ProfileField { field: string; key: string; value: string | null; confidence: string; sourceSnippet?: string | null; sourceDocId?: string | null; }
+interface DocField     { field: string; key: string; value: string | null; confidence: string; sourceSnippet?: string | null; page?: number | null; }
+interface ExtractedDoc { documentName: string; sourceType: string; processedAt: string; fields: DocField[]; }
+interface CrossRef {
+  documentsProcessed: number;
+  incomeConsistency: "consistent" | "inconsistent" | "single_source" | "no_income_data";
+  incomeDiscrepancy: string | null;
+  incomePerDocument: { documentName: string; annualizedIncome: number }[];
+  nameConsistency: "consistent" | "inconsistent";
+  applicantNamesFound: string[];
+  documentDateStatus: { documentName: string; documentDate?: string; status: string }[];
+  documentTypesCovered: { documentName: string; type: string }[];
+}
+interface PacketData {
+  renterProfile: ProfileField[];
+  incomeAssessment: { annualizedIncome: number | null; householdSize: number | null; comparison: string; frozen_60_percent_threshold: number | null };
+  readinessAssessment: { status: string; reasons: string[] };
+  documentChecklist: { presentDocuments: string[]; missingDocuments: { label: string; required: boolean }[]; expiredDocuments: { label: string; note: string }[] };
+  extractedDocuments: ExtractedDoc[];
+  crossReference: CrossRef;
+}
+
+// ── Confidence pill ───────────────────────────────────────────
+function ConfBadge({ c }: { c: string }) {
+  const styles: Record<string, string> = {
+    high:   "bg-green-50 border-green-200 text-green-700",
+    medium: "bg-amber-50 border-amber-200 text-amber-700",
+    low:    "bg-red-50 border-red-200 text-red-700",
+  };
+  return <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${styles[c] ?? styles.low}`}>{c}</span>;
+}
 
 interface ChecklistItem {
   id: string;
@@ -52,6 +86,8 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewJson, setPreviewJson] = useState<string | null>(null);
+  const [packetData, setPacketData] = useState<PacketData | null>(null);
+  const [expandedDocs, setExpandedDocs] = useState<Record<number, boolean>>({});
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [readinessStatus, setReadinessStatus] = useState<"READY_TO_REVIEW" | "NEEDS_REVIEW" | null>(null);
   const [reviewReasons, setReviewReasons] = useState<string[]>([]);
@@ -81,7 +117,8 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
 
   function setStatus(id: string, status: ItemStatus) {
     setStatuses((prev) => ({ ...prev, [id]: status }));
-    setPreviewJson(null); // invalidate preview when statuses change
+    setPreviewJson(null);
+    setPacketData(null);
   }
 
   async function generatePacket() {
@@ -90,6 +127,8 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
     setError(null);
     setReadinessStatus(null);
     setReviewReasons([]);
+    setPacketData(null);
+    setExpandedDocs({});
     try {
       const hs = householdSize ? parseInt(householdSize, 10) : undefined;
       const res = await fetch("/api/copilot/packet", {
@@ -100,6 +139,7 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
       const data = await res.json();
       if (!res.ok) { setError(data.error ? t(data.error) : t("Packet generation failed.")); return; }
       setPreviewJson(JSON.stringify(data.packet, null, 2));
+      setPacketData(data.packet as PacketData);
       if (data.readinessStatus) setReadinessStatus(data.readinessStatus);
       if (Array.isArray(data.reviewReasons)) setReviewReasons(data.reviewReasons);
     } catch {
@@ -336,21 +376,240 @@ export default function Stage3Prepare({ sessionId, onSessionDeleted }: Props) {
           </div>
         )}
 
-        {/* Packet preview */}
-        {previewJson && (
-          <div>
-            <div className="flex items-center gap-2 mb-2">
+        {/* ── Structured packet preview ─────────────────────── */}
+        {packetData && (
+          <div className="space-y-4" role="region" aria-label={t("Packet contents")}>
+            <div className="flex items-center gap-2">
               <Package className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-              <h4 className="text-xs font-semibold text-foreground uppercase tracking-wide">{t("Packet Preview")}</h4>
+              <h4 className="text-xs font-semibold text-foreground uppercase tracking-wide">{t("Packet Contents")}</h4>
             </div>
-            <div
-              className="rounded-md border border-border bg-background overflow-auto max-h-80 p-3"
-              role="region"
-              aria-label={t("Packet JSON preview")}
-              tabIndex={0}
-            >
-              <pre className="text-xs font-mono text-foreground whitespace-pre-wrap break-words">{previewJson}</pre>
-            </div>
+
+            {/* ── Confirmed profile ── */}
+            {packetData.renterProfile?.length > 0 && (
+              <div className="rounded-md border border-border bg-background overflow-hidden">
+                <div className="flex items-center gap-2 bg-muted/40 px-3 py-2 border-b border-border">
+                  <User className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                  <span className="text-xs font-semibold text-foreground">{t("Confirmed Profile")}</span>
+                  <span className="text-[10px] text-muted-foreground ml-auto">{t("renter-confirmed")}</span>
+                </div>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-muted-foreground border-b border-border">
+                      <th className="px-3 py-1.5 font-medium">{t("Field")}</th>
+                      <th className="px-3 py-1.5 font-medium">{t("Value")}</th>
+                      <th className="px-3 py-1.5 font-medium">{t("Conf.")}</th>
+                      <th className="px-3 py-1.5 font-medium hidden sm:table-cell">{t("Evidence")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {packetData.renterProfile.map((f) => (
+                      <tr key={f.key} className="border-b border-border last:border-0">
+                        <td className="px-3 py-1.5 font-medium text-foreground whitespace-nowrap">{f.field}</td>
+                        <td className="px-3 py-1.5 font-mono text-foreground">
+                          {f.value || <em className="text-muted-foreground not-italic">{t("—")}</em>}
+                        </td>
+                        <td className="px-3 py-1.5"><ConfBadge c={f.confidence} /></td>
+                        <td className="px-3 py-1.5 text-muted-foreground italic hidden sm:table-cell max-w-xs truncate">
+                          {f.sourceSnippet ? `"${f.sourceSnippet}"` : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* ── Income assessment ── */}
+            {packetData.incomeAssessment && (
+              <div className="rounded-md border border-border bg-background overflow-hidden">
+                <div className="flex items-center gap-2 bg-muted/40 px-3 py-2 border-b border-border">
+                  <TrendingUp className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                  <span className="text-xs font-semibold text-foreground">{t("Income Assessment")}</span>
+                </div>
+                <div className="px-3 py-2.5 grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
+                  <div>
+                    <span className="text-muted-foreground">{t("Annualized income")}</span>
+                    <p className="font-mono font-semibold text-foreground mt-0.5">
+                      {packetData.incomeAssessment.annualizedIncome != null
+                        ? `${packetData.incomeAssessment.annualizedIncome.toLocaleString()}`
+                        : <em className="font-normal text-muted-foreground">{t("Not computed — no income data")}</em>}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">{t("60% MTSP threshold")}</span>
+                    <p className="font-mono font-semibold text-foreground mt-0.5">
+                      {packetData.incomeAssessment.frozen_60_percent_threshold != null
+                        ? `${packetData.incomeAssessment.frozen_60_percent_threshold.toLocaleString()}`
+                        : <em className="font-normal text-muted-foreground">{t("—")}</em>}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">{t("Comparison")}</span>
+                    <p className={`font-semibold mt-0.5 ${packetData.incomeAssessment.comparison === "below_or_equal" ? "text-green-700" : packetData.incomeAssessment.comparison === "above" ? "text-red-700" : "text-amber-700"}`}>
+                      {packetData.incomeAssessment.comparison}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">{t("Household size")}</span>
+                    <p className="font-mono font-semibold text-foreground mt-0.5">
+                      {packetData.incomeAssessment.householdSize ?? <em className="font-normal text-muted-foreground">{t("—")}</em>}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Cross-reference ── */}
+            {packetData.crossReference && (
+              <div className="rounded-md border border-border bg-background overflow-hidden">
+                <div className="flex items-center gap-2 bg-muted/40 px-3 py-2 border-b border-border">
+                  <GitCompare className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                  <span className="text-xs font-semibold text-foreground">{t("Cross-Reference")}</span>
+                  <span className="text-[10px] text-muted-foreground ml-auto">
+                    {packetData.crossReference.documentsProcessed} {t("doc(s) analyzed")}
+                  </span>
+                </div>
+                <div className="divide-y divide-border text-xs">
+                  {/* Income consistency */}
+                  <div className="px-3 py-2 flex items-start gap-3">
+                    <span className="text-muted-foreground w-32 shrink-0">{t("Income")}</span>
+                    <div className="flex-1">
+                      <span className={`font-semibold ${
+                        packetData.crossReference.incomeConsistency === "consistent" ? "text-green-700"
+                        : packetData.crossReference.incomeConsistency === "inconsistent" ? "text-red-700"
+                        : "text-amber-700"
+                      }`}>
+                        {packetData.crossReference.incomeConsistency.replace(/_/g, " ")}
+                      </span>
+                      {packetData.crossReference.incomeDiscrepancy && (
+                        <span className="ml-2 text-red-600">— {packetData.crossReference.incomeDiscrepancy}</span>
+                      )}
+                      {packetData.crossReference.incomePerDocument.length > 0 && (
+                        <ul className="mt-1 space-y-0.5">
+                          {packetData.crossReference.incomePerDocument.map((d, i) => (
+                            <li key={i} className="text-muted-foreground">
+                              <span className="font-medium text-foreground">{d.documentName}</span>: ${d.annualizedIncome.toLocaleString()}/yr
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </div>
+                  {/* Name consistency */}
+                  <div className="px-3 py-2 flex items-start gap-3">
+                    <span className="text-muted-foreground w-32 shrink-0">{t("Applicant name")}</span>
+                    <div className="flex-1">
+                      <span className={`font-semibold ${packetData.crossReference.nameConsistency === "consistent" ? "text-green-700" : "text-red-700"}`}>
+                        {packetData.crossReference.nameConsistency}
+                      </span>
+                      {packetData.crossReference.applicantNamesFound.length > 0 && (
+                        <span className="ml-2 text-foreground">{packetData.crossReference.applicantNamesFound.join(" / ")}</span>
+                      )}
+                    </div>
+                  </div>
+                  {/* Date recency */}
+                  {packetData.crossReference.documentDateStatus.length > 0 && (
+                    <div className="px-3 py-2 flex items-start gap-3">
+                      <span className="text-muted-foreground w-32 shrink-0">{t("Date recency")}</span>
+                      <ul className="flex-1 space-y-0.5">
+                        {packetData.crossReference.documentDateStatus.map((d, i) => (
+                          <li key={i} className="flex items-center gap-2">
+                            <span className={`font-semibold ${d.status === "current" ? "text-green-700" : d.status === "stale" ? "text-red-700" : "text-amber-700"}`}>
+                              {d.status}
+                            </span>
+                            <span className="text-muted-foreground">{d.documentName}{d.documentDate ? ` (${d.documentDate})` : ""}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {/* Doc types */}
+                  {packetData.crossReference.documentTypesCovered.length > 0 && (
+                    <div className="px-3 py-2 flex items-start gap-3">
+                      <span className="text-muted-foreground w-32 shrink-0">{t("Types found")}</span>
+                      <div className="flex flex-wrap gap-1">
+                        {packetData.crossReference.documentTypesCovered.map((d, i) => (
+                          <span key={i} className="rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-foreground">
+                            {d.type}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ── Extracted documents (per-file RAG data) ── */}
+            {packetData.extractedDocuments?.length > 0 && (
+              <div className="rounded-md border border-border bg-background overflow-hidden">
+                <div className="flex items-center gap-2 bg-muted/40 px-3 py-2 border-b border-border">
+                  <FileText className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                  <span className="text-xs font-semibold text-foreground">{t("Extracted Documents")}</span>
+                  <span className="text-[10px] text-muted-foreground ml-auto">
+                    {packetData.extractedDocuments.length} {t("file(s)")}
+                  </span>
+                </div>
+                <div className="divide-y divide-border">
+                  {packetData.extractedDocuments.map((doc, idx) => {
+                    const isOpen = !!expandedDocs[idx];
+                    return (
+                      <div key={idx}>
+                        <button
+                          type="button"
+                          onClick={() => setExpandedDocs((p) => ({ ...p, [idx]: !isOpen }))}
+                          className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+                        >
+                          <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
+                          <span className="flex-1 text-xs font-medium text-foreground truncate">{doc.documentName}</span>
+                          <span className="text-[10px] text-muted-foreground uppercase tracking-wide mr-2">{doc.sourceType}</span>
+                          {isOpen
+                            ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+                        </button>
+                        {isOpen && (
+                          <table className="w-full text-xs border-t border-border">
+                            <thead>
+                              <tr className="text-left text-muted-foreground bg-muted/20">
+                                <th className="px-3 py-1.5 font-medium">{t("Field")}</th>
+                                <th className="px-3 py-1.5 font-medium">{t("Value")}</th>
+                                <th className="px-3 py-1.5 font-medium">{t("Conf.")}</th>
+                                <th className="px-3 py-1.5 font-medium hidden md:table-cell">{t("Evidence snippet")}</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {doc.fields.map((f, fi) => (
+                                <tr key={fi} className="border-t border-border">
+                                  <td className="px-3 py-1.5 font-medium text-foreground whitespace-nowrap">{f.field}</td>
+                                  <td className="px-3 py-1.5 font-mono text-foreground">
+                                    {f.value || <em className="text-muted-foreground not-italic">—</em>}
+                                  </td>
+                                  <td className="px-3 py-1.5"><ConfBadge c={f.confidence} /></td>
+                                  <td className="px-3 py-1.5 text-muted-foreground italic hidden md:table-cell max-w-xs truncate">
+                                    {f.sourceSnippet ? `"${f.sourceSnippet}"` : "—"}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Raw JSON fallback (for advanced users / download preview) */}
+            <details className="group">
+              <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground list-none flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-primary rounded">
+                <ChevronDown className="h-3 w-3 group-open:rotate-180 transition-transform" aria-hidden="true" />
+                {t("View raw JSON")}
+              </summary>
+              <div className="mt-2 rounded-md border border-border bg-background overflow-auto max-h-64 p-3">
+                <pre className="text-xs font-mono text-foreground whitespace-pre-wrap break-words">{previewJson}</pre>
+              </div>
+            </details>
           </div>
         )}
       </div>
