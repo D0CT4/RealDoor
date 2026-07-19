@@ -131,19 +131,9 @@ const FILE_TYPE_LABELS: Record<string, { label: string; icon: React.ReactNode; c
   "text/plain": { label: "TXT", icon: <FileText className="h-4 w-4" />, color: "text-gray-600" },
 };
 
-const SYNTHETIC_EXAMPLE = `PAY STUB — Acme Staffing LLC
-Pay Period: 06/01/2026 – 06/14/2026  Pay Date: 06/19/2026
-Employee: Maria Gonzalez
-Gross Pay This Period: $2,150.00
-YTD Gross: $25,800.00`;
-
-type InputMode = "upload" | "paste";
-
 export default function Stage1Profile({ sessionId: existingSession, onConfirmed }: Props) {
   const { t } = useLanguage();
 
-  // Mode + inputs
-  const [inputMode, setInputMode] = useState<InputMode>("upload");
   const [files, setFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   // Per-file extraction progress when multiple files are queued
